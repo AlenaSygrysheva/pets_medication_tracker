@@ -1,0 +1,85 @@
+[tool.poetry]
+name = "pets-medication-tracker"
+version = "1.0.0"
+description = "Мобильно-дружественное веб-приложение для отслеживания приёма препаратов у домашних животных"
+authors = ["Alena Sygrysheva <dadaidinaxyi@gmail.com>"]
+readme = "README.md"
+packages = []
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.104.1"
+uvicorn = { version = "^0.24.0", extras = ["standard"] }
+sqlalchemy = { version = "^2.0.23", extras = ["asyncio"] }
+alembic = "^1.12.1"
+asyncpg = "^0.29.0"
+pydantic = { version = "^2.5.0", extras = ["email"] }
+pydantic-settings = "^2.1.0"
+python-jose = { version = "^3.3.0", extras = ["cryptography"] }
+bcrypt = "^4.2.1"
+python-multipart = "^0.0.6"
+apscheduler = "^3.10.4"
+redis = { version = "^5.0.1", extras = ["hiredis"] }
+httpx = "^0.25.2"
+
+[tool.poetry.group.dev.dependencies]
+aiosqlite = "^0.19.0"
+pytest = "^7.4.3"
+pytest-asyncio = "^0.21.1"
+pytest-cov = "^4.1.0"
+ruff = ">=0.4.4"
+mypy = ">=1.10.0"
+
+
+[[tool.poetry.source]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple/"
+priority = "primary"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+testpaths = ["tests"]
+
+# ---------------------------------------------------------------------------
+# Ruff
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "E501",    # line too long (handled by formatter)
+    "B008",    # function calls in default args (FastAPI pattern)
+    "RUF012",  # mutable class var without ClassVar (SQLAlchemy models)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "ANN", "D", "RUF001", "RUF003"]
+"migrations/*" = ["ALL"]
+"app/models/*" = ["F821"]  # SQLAlchemy forward references in relationship() strings
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------------------------------------------------------------------------
+# Mypy
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
+
+[[tool.mypy.overrides]]
+module = ["alembic.*", "tests.*", "migrations.*"]
+ignore_errors = true

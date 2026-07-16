@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pet Medication Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .status-taken    { @apply bg-green-100 text-green-800 border-green-300; }
+    .status-pending  { @apply bg-yellow-100 text-yellow-800 border-yellow-300; }
+    .status-missed   { @apply bg-red-100 text-red-800 border-red-300; }
+    .status-skipped  { @apply bg-gray-100 text-gray-600 border-gray-300; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+
+<!-- ===== AUTH SCREEN ===== -->
+<div id="authScreen" class="flex items-center justify-center min-h-screen p-4">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-8">
+      <div class="text-5xl mb-3">🐾</div>
+      <h1 class="text-2xl font-bold text-gray-800">Pet Medication Tracker</h1>
+      <p class="text-gray-500 text-sm mt-1">Следите за здоровьем ваших питомцев</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex mb-6 bg-gray-100 rounded-xl p-1">
+      <button onclick="showAuthTab('login')" id="tabLogin"
+        class="flex-1 py-2 rounded-lg text-sm font-medium transition-all bg-white shadow text-gray-800">
+        Войти
+      </button>
+      <button onclick="showAuthTab('register')" id="tabRegister"
+        class="flex-1 py-2 rounded-lg text-sm font-medium transition-all text-gray-500">
+        Регистрация
+      </button>
+    </div>
+
+    <!-- Login Form -->
+    <form id="loginForm" onsubmit="doLogin(event)" class="space-y-4">
+      <input type="email" id="loginEmail" placeholder="Email" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
+      <input type="password" id="loginPassword" placeholder="Пароль" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium transition-colors text-sm">
+        Войти
+      </button>
+    </form>
+
+    <!-- Register Form -->
+    <form id="registerForm" onsubmit="doRegister(event)" class="space-y-4 hidden">
+      <input type="email" id="regEmail" placeholder="Email" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
+      <input type="text" id="regUsername" placeholder="Имя пользователя" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
+      <input type="password" id="regPassword" placeholder="Пароль (мин. 8 символов)" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium transition-colors text-sm">
+        Зарегистрироваться
+      </button>
+    </form>
+
+    <div id="authError" class="mt-3 text-red-500 text-xs text-center hidden"></div>
+  </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="appScreen" class="hidden flex flex-col min-h-screen max-w-md mx-auto">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+    <div class="flex items-center gap-2">
+      <span class="text-2xl">🐾</span>
+      <span class="font-bold text-gray-800">PetMed</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="headerUsername" class="text-sm text-gray-500"></span>
+      <button onclick="doLogout()" class="text-xs text-gray-400 hover:text-red-500 transition-colors">Выйти</button>
+    </div>
+  </header>
+
+  <!-- Bottom Nav -->
+  <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-100 flex z-10">
+    <button onclick="showPage('calendar')" id="nav-calendar"
+      class="flex-1 py-3 flex flex-col items-center gap-1 text-xs text-blue-500 font-medium">
+      <span class="text-xl">📅</span>Календарь
+    </button>
+    <button onclick="showPage('pets')" id="nav-pets"
+      class="flex-1 py-3 flex flex-col items-center gap-1 text-xs text-gray-400">
+      <span class="text-xl">🐶</span>Питомцы
+    </button>
+    <button onclick="showPage('medications')" id="nav-medications"
+      class="flex-1 py-3 flex flex-col items-center gap-1 text-xs text-gray-400">
+      <span class="text-xl">💊</span>Препараты
+    </button>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-y-auto pb-20 pt-2">
+
+    <!-- ===== CALENDAR PAGE ===== -->
+    <div id="page-calendar" class="page px-4 space-y-4">
+      <div class="flex items-center justify-between py-2">
+        <button onclick="changeDay(-1)" class="p-2 rounded-lg hover:bg-gray-100">◀</button>
+        <div class="text-center">
+          <div id="calendarDate" class="font-semibold text-gray-800"></div>
+          <div id="calendarPetName" class="text-xs text-gray-400"></div>
+        </div>
+        <button onclick="changeDay(1)" class="p-2 rounded-lg hover:bg-gray-100">▶</button>
+      </div>
+
+      <!-- Pet selector -->
+      <div id="petSelectorCal" class="flex gap-2 overflow-x-auto pb-1 scrollbar-none"></div>
+
+      <!-- Stats -->
+      <div id="calendarStats" class="grid grid-cols-3 gap-2 hidden">
+        <div class="bg-green-50 rounded-xl p-3 text-center">
+          <div id="statTaken" class="text-2xl font-bold text-green-600">0</div>
+          <div class="text-xs text-green-700">Принято</div>
+        </div>
+        <div class="bg-yellow-50 rounded-xl p-3 text-center">
+          <div id="statPending" class="text-2xl font-bold text-yellow-600">0</div>
+          <div class="text-xs text-yellow-700">Ожидает</div>
+        </div>
+        <div class="bg-red-50 rounded-xl p-3 text-center">
+          <div id="statMissed" class="text-2xl font-bold text-red-600">0</div>
+          <div class="text-xs text-red-700">Пропущено</div>
+        </div>
+      </div>
+
+      <div id="dosesList" class="space-y-3"></div>
+      <div id="noDoses" class="text-center py-12 text-gray-400 hidden">
+        <div class="text-4xl mb-2">✅</div>
+        <div class="text-sm">Препаратов на этот день нет</div>
+      </div>
+    </div>
+
+    <!-- ===== PETS PAGE ===== -->
+    <div id="page-pets" class="page px-4 space-y-4 hidden">
+      <div class="flex items-center justify-between py-2">
+        <h2 class="font-semibold text-gray-800">Мои питомцы</h2>
+        <button onclick="openModal('petModal')"
+          class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium">+ Добавить</button>
+      </div>
+      <div id="petsList" class="space-y-3"></div>
+      <div id="noPets" class="text-center py-12 text-gray-400 hidden">
+        <div class="text-4xl mb-2">🐾</div>
+        <div class="text-sm">Добавьте первого питомца</div>
+      </div>
+    </div>
+
+    <!-- ===== MEDICATIONS PAGE ===== -->
+    <div id="page-medications" class="page px-4 space-y-4 hidden">
+      <div class="flex items-center justify-between py-2">
+        <h2 class="font-semibold text-gray-800">Препараты</h2>
+        <button onclick="openAddMedModal()"
+          class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium">+ Добавить</button>
+      </div>
+
+      <!-- Pet filter -->
+      <div id="petSelectorMed" class="flex gap-2 overflow-x-auto pb-1"></div>
+
+      <div id="medsList" class="space-y-3"></div>
+      <div id="noMeds" class="text-center py-12 text-gray-400 hidden">
+        <div class="text-4xl mb-2">💊</div>
+        <div class="text-sm">Препаратов не добавлено</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Pet Modal -->
+<div id="petModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 id="petModalTitle" class="font-semibold text-gray-800">Добавить питомца</h3>
+      <button onclick="closeModal('petModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <form onsubmit="savePet(event)" class="space-y-3">
+      <input type="hidden" id="petId" />
+      <div class="flex justify-center">
+        <div class="relative cursor-pointer" onclick="document.getElementById('petAvatarInput').click()">
+          <div class="w-20 h-20 rounded-full bg-gray-100 border-2 border-gray-200 overflow-hidden flex items-center justify-center">
+            <img id="petAvatarImg" class="w-full h-full object-cover hidden" src="" alt="" />
+            <span id="petAvatarPlaceholder" class="text-3xl">🐾</span>
+          </div>
+          <div class="absolute bottom-0 right-0 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold leading-none">+</div>
+        </div>
+        <input type="file" id="petAvatarInput" accept="image/*" class="hidden" onchange="previewAvatar(this)" />
+      </div>
+      <input type="text" id="petName" placeholder="Имя *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="text" id="petSpecies" placeholder="Вид (кошка, собака...) *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="text" id="petBreed" placeholder="Порода"
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <div class="grid grid-cols-2 gap-3">
+        <input type="text" id="petBirth" placeholder="дд/мм/гггг" maxlength="10"
+          oninput="autoDateSlash(this)"
+          class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <input type="number" id="petWeight" placeholder="Вес (кг)" step="0.01" min="0.01"
+          class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      </div>
+      <textarea id="petNotes" placeholder="Заметки" rows="2"
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Сохранить
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Medication Modal -->
+<div id="medModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]">
+    <div class="flex items-center justify-between">
+      <h3 id="medModalTitle" class="font-semibold text-gray-800">Добавить препарат</h3>
+      <button onclick="closeModal('medModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <form onsubmit="saveMedication(event)" class="space-y-3">
+      <input type="hidden" id="medId" />
+      <select id="medPetId" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <option value="">Выберите питомца *</option>
+      </select>
+      <input type="text" id="medName" placeholder="Название препарата *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="text" id="medDosage" placeholder="Дозировка (напр. 5мг) *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Частота в день *</label>
+          <select id="medFrequency"
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="1">1 раз</option>
+            <option value="2">2 раза</option>
+            <option value="3">3 раза</option>
+            <option value="4">4 раза</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Дата начала *</label>
+          <input type="text" id="medStartDate" required placeholder="дд/мм/гггг" maxlength="10"
+            oninput="autoDateSlash(this)"
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        </div>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Дата окончания (необязательно)</label>
+        <input type="text" id="medEndDate" placeholder="дд/мм/гггг" maxlength="10"
+          oninput="autoDateSlash(this)"
+          class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      </div>
+      <textarea id="medInstructions" placeholder="Инструкции (до/после еды и т.д.)" rows="2"
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Сохранить
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Dose Action Modal -->
+<div id="doseModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Отметить приём</h3>
+      <button onclick="closeModal('doseModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <div id="doseModalInfo" class="bg-gray-50 rounded-xl p-3 text-sm text-gray-700"></div>
+    <div class="grid grid-cols-3 gap-2">
+      <button onclick="recordDose('taken')"
+        class="py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm font-medium">✅ Принято</button>
+      <button onclick="recordDose('skipped')"
+        class="py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-sm font-medium">⏭ Пропустить</button>
+      <button onclick="recordDose('missed')"
+        class="py-3 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-sm font-medium">❌ Не принято</button>
+    </div>
+    <textarea id="doseNotes" placeholder="Заметка (необязательно)" rows="2"
+      class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-xl text-sm z-50 hidden transition-all"></div>
+
+<script>
+const API = '/api/v1';
+let token = localStorage.getItem('access_token');
+let refreshToken = localStorage.getItem('refresh_token');
+let currentUser = null;
+let pets = [];
+let selectedPetId = null;
+let calendarDate = new Date();
+let activeDoseId = null;
+let medsPetFilter = null;
+let currentMeds = [];
+
+// ===== AUTH =====
+function showAuthTab(tab) {
+  document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('registerForm').classList.toggle('hidden', tab !== 'register');
+  document.getElementById('tabLogin').className = tab === 'login'
+    ? 'flex-1 py-2 rounded-lg text-sm font-medium transition-all bg-white shadow text-gray-800'
+    : 'flex-1 py-2 rounded-lg text-sm font-medium transition-all text-gray-500';
+  document.getElementById('tabRegister').className = tab === 'register'
+    ? 'flex-1 py-2 rounded-lg text-sm font-medium transition-all bg-white shadow text-gray-800'
+    : 'flex-1 py-2 rounded-lg text-sm font-medium transition-all text-gray-500';
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const res = await apiFetch('/auth/login', 'POST', {
+    email: document.getElementById('loginEmail').value,
+    password: document.getElementById('loginPassword').value,
+  }, false);
+  if (res.ok) {
+    const data = await res.json();
+    storeTokens(data);
+    await initApp();
+  } else {
+    showAuthError((await res.json()).detail || 'Ошибка входа');
+  }
+}
+
+async function doRegister(e) {
+  e.preventDefault();
+  const res = await apiFetch('/auth/register', 'POST', {
+    email: document.getElementById('regEmail').value,
+    username: document.getElementById('regUsername').value,
+    password: document.getElementById('regPassword').value,
+  }, false);
+  if (res.ok) {
+    const data = await res.json();
+    storeTokens(data);
+    await initApp();
+  } else {
+    const err = await res.json();
+    showAuthError(err.detail || 'Ошибка регистрации');
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  token = null;
+  refreshToken = null;
+  document.getElementById('authScreen').classList.remove('hidden');
+  document.getElementById('appScreen').classList.add('hidden');
+}
+
+function storeTokens(data) {
+  token = data.access_token;
+  refreshToken = data.refresh_token;
+  localStorage.setItem('access_token', token);
+  localStorage.setItem('refresh_token', refreshToken);
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 3000);
+}
+
+// ===== API =====
+async function apiFetch(path, method = 'GET', body = null, auth = true) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (auth && token) headers['Authorization'] = `Bearer ${token}`;
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  let res = await fetch(API + path, opts);
+  if (res.status === 401 && auth && refreshToken) {
+    const r = await fetch(API + '/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      storeTokens(d);
+      headers['Authorization'] = `Bearer ${token}`;
+      res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    } else {
+      doLogout();
+    }
+  }
+  return res;
+}
+
+// ===== INIT =====
+async function initApp() {
+  const res = await apiFetch('/auth/me');
+  if (!res.ok) { doLogout(); return; }
+  currentUser = await res.json();
+  document.getElementById('headerUsername').textContent = currentUser.username;
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('appScreen').classList.remove('hidden');
+  await loadPets();
+  showPage('calendar');
+}
+
+// ===== NAVIGATION =====
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+  document.getElementById('page-' + name).classList.remove('hidden');
+  document.querySelectorAll('nav button').forEach(b => {
+    b.className = 'flex-1 py-3 flex flex-col items-center gap-1 text-xs text-gray-400';
+  });
+  const nb = document.getElementById('nav-' + name);
+  if (nb) nb.className = 'flex-1 py-3 flex flex-col items-center gap-1 text-xs text-blue-500 font-medium';
+
+  if (name === 'calendar') renderCalendar();
+  if (name === 'pets') renderPets();
+  if (name === 'medications') renderMedications();
+}
+
+// ===== PETS =====
+async function loadPets() {
+  const res = await apiFetch('/pets');
+  if (res.ok) {
+    pets = await res.json();
+    if (pets.length > 0 && !selectedPetId) selectedPetId = pets[0].id;
+  }
+}
+
+function renderPets() {
+  const list = document.getElementById('petsList');
+  const empty = document.getElementById('noPets');
+  list.innerHTML = '';
+  if (!pets.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  pets.forEach(pet => {
+    list.insertAdjacentHTML('beforeend', `
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-12 h-12 rounded-full bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center border border-gray-200">
+              ${pet.avatar_path
+                ? `<img src="${esc(pet.avatar_path)}" class="w-full h-full object-cover" />`
+                : `<span class="text-2xl">🐾</span>`}
+            </div>
+            <div class="min-w-0">
+              <div class="font-semibold text-gray-800">${esc(pet.name)}</div>
+              <div class="text-xs text-gray-500 mt-0.5">${esc(pet.species)}${pet.breed ? ' · ' + esc(pet.breed) : ''}${pet.weight_kg ? ' · ' + pet.weight_kg + ' кг' : ''}</div>
+              ${pet.notes ? `<div class="text-xs text-gray-400 mt-0.5 truncate">${esc(pet.notes)}</div>` : ''}
+            </div>
+          </div>
+          <div class="flex gap-1 flex-shrink-0">
+            <button onclick="editPet(${pet.id})" class="text-blue-400 hover:text-blue-600 text-sm px-2">✏️</button>
+            <button onclick="deletePet(${pet.id})" class="text-red-400 hover:text-red-600 text-sm px-2">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `);
+  });
+}
+
+function renderPetSelectors() {
+  ['petSelectorCal', 'petSelectorMed'].forEach(id => {
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    pets.forEach(pet => {
+      const active = selectedPetId === pet.id;
+      el.insertAdjacentHTML('beforeend', `
+        <button onclick="selectPet(${pet.id}, '${id}')"
+          class="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${active ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-600 border-gray-200'}">
+          ${esc(pet.name)}
+        </button>
+      `);
+    });
+  });
+}
+
+function selectPet(petId, selectorId) {
+  selectedPetId = petId;
+  renderPetSelectors();
+  if (selectorId === 'petSelectorCal') renderCalendar();
+  if (selectorId === 'petSelectorMed') renderMedications();
+}
+
+function previewAvatar(input) {
+  if (!input.files.length) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('petAvatarImg').src = e.target.result;
+    document.getElementById('petAvatarImg').classList.remove('hidden');
+    document.getElementById('petAvatarPlaceholder').classList.add('hidden');
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.remove('hidden');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+function editPet(id) {
+  const pet = pets.find(p => p.id === id);
+  if (!pet) return;
+  document.getElementById('petId').value = pet.id;
+  document.getElementById('petName').value = pet.name;
+  document.getElementById('petSpecies').value = pet.species;
+  document.getElementById('petBreed').value = pet.breed || '';
+  document.getElementById('petBirth').value = pet.birth_date ? fromApiDate(pet.birth_date) : '';
+  document.getElementById('petWeight').value = pet.weight_kg || '';
+  document.getElementById('petNotes').value = pet.notes || '';
+  document.getElementById('petModalTitle').textContent = 'Редактировать питомца';
+  document.getElementById('petAvatarInput').value = '';
+  if (pet.avatar_path) {
+    document.getElementById('petAvatarImg').src = pet.avatar_path;
+    document.getElementById('petAvatarImg').classList.remove('hidden');
+    document.getElementById('petAvatarPlaceholder').classList.add('hidden');
+  } else {
+    document.getElementById('petAvatarImg').classList.add('hidden');
+    document.getElementById('petAvatarPlaceholder').classList.remove('hidden');
+  }
+  openModal('petModal');
+}
+
+async function savePet(e) {
+  e.preventDefault();
+  const id = document.getElementById('petId').value;
+  const body = {
+    name: document.getElementById('petName').value,
+    species: document.getElementById('petSpecies').value,
+    breed: document.getElementById('petBreed').value || null,
+    birth_date: toApiDate(document.getElementById('petBirth').value),
+    weight_kg: parseFloat(document.getElementById('petWeight').value) || null,
+    notes: document.getElementById('petNotes').value || null,
+  };
+  const res = await apiFetch(id ? `/pets/${id}` : '/pets', id ? 'PATCH' : 'POST', body);
+  if (!res.ok) { showToast('Ошибка сохранения', true); return; }
+  const savedPet = await res.json();
+
+  const fileInput = document.getElementById('petAvatarInput');
+  if (fileInput.files.length > 0) {
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    const headers = { 'Authorization': `Bearer ${token}` };
+    await fetch(`${API}/pets/${savedPet.id}/avatar`, { method: 'POST', headers, body: formData });
+  }
+
+  closeModal('petModal');
+  document.getElementById('petId').value = '';
+  document.getElementById('petModalTitle').textContent = 'Добавить питомца';
+  document.getElementById('petAvatarInput').value = '';
+  document.getElementById('petAvatarImg').classList.add('hidden');
+  document.getElementById('petAvatarPlaceholder').classList.remove('hidden');
+  await loadPets();
+  renderPets();
+  renderPetSelectors();
+  showToast(id ? 'Питомец обновлён' : 'Питомец добавлен');
+}
+
+async function deletePet(id) {
+  if (!confirm('Удалить питомца? Все его препараты и дозы тоже будут удалены.')) return;
+  const res = await apiFetch(`/pets/${id}`, 'DELETE');
+  if (res.ok) {
+    await loadPets();
+    if (selectedPetId === id) selectedPetId = pets[0]?.id || null;
+    renderPets();
+    renderPetSelectors();
+    showToast('Питомец удалён');
+  }
+}
+
+// ===== MEDICATIONS =====
+function openAddMedModal() {
+  document.getElementById('medId').value = '';
+  document.getElementById('medModalTitle').textContent = 'Добавить препарат';
+  document.getElementById('medPetId').innerHTML = '<option value="">Выберите питомца *</option>';
+  document.getElementById('medPetId').disabled = false;
+  pets.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    if (p.id === selectedPetId) opt.selected = true;
+    document.getElementById('medPetId').appendChild(opt);
+  });
+  document.getElementById('medName').value = '';
+  document.getElementById('medDosage').value = '';
+  document.getElementById('medFrequency').value = '1';
+  document.getElementById('medStartDate').value = fromApiDate(new Date().toISOString().split('T')[0]);
+  document.getElementById('medStartDate').disabled = false;
+  document.getElementById('medEndDate').value = '';
+  document.getElementById('medInstructions').value = '';
+  openModal('medModal');
+}
+
+function editMedication(id) {
+  const med = currentMeds.find(m => m.id === id);
+  if (!med) return;
+  document.getElementById('medId').value = med.id;
+  document.getElementById('medModalTitle').textContent = 'Редактировать препарат';
+  document.getElementById('medPetId').innerHTML = '';
+  const opt = document.createElement('option');
+  opt.value = med.pet_id;
+  opt.textContent = pets.find(p => p.id === med.pet_id)?.name || med.pet_id;
+  opt.selected = true;
+  document.getElementById('medPetId').appendChild(opt);
+  document.getElementById('medPetId').disabled = true;
+  document.getElementById('medName').value = med.name;
+  document.getElementById('medDosage').value = med.dosage;
+  document.getElementById('medFrequency').value = med.frequency_per_day;
+  document.getElementById('medStartDate').value = fromApiDate(med.start_date);
+  document.getElementById('medStartDate').disabled = false;
+  document.getElementById('medEndDate').value = med.end_date ? fromApiDate(med.end_date) : '';
+  document.getElementById('medInstructions').value = med.instructions || '';
+  openModal('medModal');
+}
+
+async function saveMedication(e) {
+  e.preventDefault();
+  const medId = document.getElementById('medId').value;
+  let res;
+  if (medId) {
+    const body = {
+      name: document.getElementById('medName').value,
+      dosage: document.getElementById('medDosage').value,
+      frequency_per_day: parseInt(document.getElementById('medFrequency').value),
+      start_date: toApiDate(document.getElementById('medStartDate').value),
+      end_date: toApiDate(document.getElementById('medEndDate').value),
+      instructions: document.getElementById('medInstructions').value || null,
+    };
+    res = await apiFetch(`/medications/${medId}`, 'PATCH', body);
+  } else {
+    const body = {
+      pet_id: parseInt(document.getElementById('medPetId').value),
+      name: document.getElementById('medName').value,
+      dosage: document.getElementById('medDosage').value,
+      frequency_per_day: parseInt(document.getElementById('medFrequency').value),
+      start_date: toApiDate(document.getElementById('medStartDate').value),
+      end_date: toApiDate(document.getElementById('medEndDate').value),
+      instructions: document.getElementById('medInstructions').value || null,
+    };
+    res = await apiFetch('/medications', 'POST', body);
+  }
+  if (res.ok) {
+    closeModal('medModal');
+    await renderMedications();
+    showToast(medId ? 'Препарат обновлён' : 'Препарат добавлен, расписание создано');
+  } else {
+    const err = await res.json();
+    showToast(err.detail || 'Ошибка сохранения', true);
+  }
+}
+
+async function renderMedications() {
+  if (!selectedPetId) return;
+  const res = await apiFetch(`/medications/pet/${selectedPetId}`);
+  renderPetSelectors();
+  const list = document.getElementById('medsList');
+  const empty = document.getElementById('noMeds');
+  list.innerHTML = '';
+  if (!res.ok) return;
+  currentMeds = await res.json();
+  if (!currentMeds.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  currentMeds.forEach(med => {
+    const active = med.is_active;
+    list.insertAdjacentHTML('beforeend', `
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-gray-800">${esc(med.name)}</span>
+              <span class="text-xs px-2 py-0.5 rounded-full ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${active ? 'Активен' : 'Завершён'}</span>
+            </div>
+            <div class="text-sm text-gray-600 mt-1">${esc(med.dosage)} · ${med.frequency_per_day}x/день</div>
+            <div class="text-xs text-gray-400 mt-1">${fromApiDate(med.start_date)}${med.end_date ? ' → ' + fromApiDate(med.end_date) : ' → ∞'}</div>
+            ${med.instructions ? `<div class="text-xs text-blue-600 mt-1">ℹ️ ${esc(med.instructions)}</div>` : ''}
+          </div>
+          <div class="flex gap-1">
+            <button onclick="editMedication(${med.id})" class="text-blue-400 hover:text-blue-600 text-sm px-2">✏️</button>
+            <button onclick="deleteMedication(${med.id})" class="text-red-400 hover:text-red-600 text-sm px-2">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `);
+  });
+}
+
+async function deleteMedication(id) {
+  if (!confirm('Удалить препарат и все его дозы?')) return;
+  const res = await apiFetch(`/medications/${id}`, 'DELETE');
+  if (res.ok) { await renderMedications(); showToast('Препарат удалён'); }
+}
+
+// ===== CALENDAR =====
+async function renderCalendar() {
+  if (!selectedPetId) {
+    renderPetSelectors();
+    return;
+  }
+  renderPetSelectors();
+  const dateStr = calendarDate.toISOString().split('T')[0];
+  document.getElementById('calendarDate').textContent = formatDate(calendarDate);
+
+  const res = await apiFetch(`/calendar/pet/${selectedPetId}/${dateStr}`);
+  if (!res.ok) return;
+  const data = await res.json();
+
+  document.getElementById('calendarPetName').textContent = data.pet_name;
+
+  const stats = document.getElementById('calendarStats');
+  if (data.total > 0) {
+    stats.classList.remove('hidden');
+    document.getElementById('statTaken').textContent = data.taken;
+    document.getElementById('statPending').textContent = data.pending;
+    document.getElementById('statMissed').textContent = data.missed;
+  } else {
+    stats.classList.add('hidden');
+  }
+
+  const list = document.getElementById('dosesList');
+  const empty = document.getElementById('noDoses');
+  list.innerHTML = '';
+
+  if (!data.doses.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  data.doses.forEach(dose => {
+    const time = new Date(dose.scheduled_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+    const statusLabels = { taken: '✅ Принято', pending: '⏳ Ожидает', missed: '❌ Пропущено', skipped: '⏭ Пропущено' };
+    const statusClasses = { taken: 'bg-green-50 border-green-200', pending: 'bg-yellow-50 border-yellow-200', missed: 'bg-red-50 border-red-200', skipped: 'bg-gray-50 border-gray-200' };
+    list.insertAdjacentHTML('beforeend', `
+      <div class="rounded-2xl p-4 border ${statusClasses[dose.status] || 'bg-white border-gray-100'} cursor-pointer"
+           onclick="openDoseModal(${dose.dose_id}, '${esc(dose.medication_name)}', '${esc(dose.dosage)}', '${time}')">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-medium text-gray-800">${esc(dose.medication_name)}</div>
+            <div class="text-xs text-gray-500 mt-0.5">${esc(dose.dosage)} · ${time}</div>
+            ${dose.notes ? `<div class="text-xs text-gray-400 mt-1">${esc(dose.notes)}</div>` : ''}
+          </div>
+          <span class="text-xs font-medium px-2 py-1 rounded-full bg-white/80">${statusLabels[dose.status] || dose.status}</span>
+        </div>
+      </div>
+    `);
+  });
+}
+
+function changeDay(delta) {
+  calendarDate.setDate(calendarDate.getDate() + delta);
+  renderCalendar();
+}
+
+function openDoseModal(doseId, medName, dosage, time) {
+  activeDoseId = doseId;
+  document.getElementById('doseModalInfo').innerHTML =
+    `<strong>${esc(medName)}</strong><br><span class="text-gray-500">${esc(dosage)} · ${time}</span>`;
+  document.getElementById('doseNotes').value = '';
+  openModal('doseModal');
+}
+
+async function recordDose(status) {
+  if (!activeDoseId) return;
+  const notes = document.getElementById('doseNotes').value || null;
+  const res = await apiFetch(`/doses/${activeDoseId}`, 'PATCH', { status, notes });
+  if (res.ok) {
+    closeModal('doseModal');
+    await renderCalendar();
+    showToast('Статус обновлён');
+  } else {
+    showToast('Ошибка обновления', true);
+  }
+}
+
+// ===== UTILS =====
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// "2024-01-28" → "28/01/2024"
+function fromApiDate(s) {
+  if (!s) return '';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// "28/01/2024" → "2024-01-28" (null если строка пустая или неполная)
+function toApiDate(s) {
+  if (!s || s.length < 10) return null;
+  const [d, m, y] = s.split('/');
+  if (!d || !m || !y) return null;
+  return `${y}-${m}-${d}`;
+}
+
+// Автоматически вставляет "/" после дня и месяца при вводе
+function autoDateSlash(el) {
+  let v = el.value.replace(/\D/g, '');
+  if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2);
+  if (v.length > 5) v = v.slice(0, 5) + '/' + v.slice(5);
+  el.value = v.slice(0, 10);
+}
+
+function formatDate(d) {
+  return d.toLocaleDateString('ru', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function showToast(msg, error = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `fixed top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl text-sm z-50 transition-all ${error ? 'bg-red-500' : 'bg-gray-800'} text-white`;
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 2500);
+}
+
+// ===== STARTUP =====
+(async () => {
+  if (token) {
+    await initApp();
+  }
+})();
+</script>
+</body>
+</html>
