@@ -107,8 +107,32 @@ class MedicationService:
         pet = await self.pet_repo.get_by_id(pet_id)
         if not pet or pet.owner_id != owner_id:
             raise NotFoundError("Pet not found")
-        ended = await self.repo.get_ended_by_pet(pet_id, date.today())
+        ended = await self.repo.get_ended_by_pet(pet_id)
         return [await self._build_stats(med) for med in ended]
+
+    async def extend_after_unresolved_dose(self, medication: Medication) -> None:
+        """A missed/skipped dose doesn't shrink the course — it gets replaced by a
+        fresh pending dose further down the schedule, so the number of doses that
+        can still end up taken stays equal to what was originally planned. The only
+        way to actually stop this is cancelling the course (is_active=False)."""
+        if not medication.is_active:
+            return
+        last = await self.dose_repo.get_last_scheduled(medication.id)
+        after = last.scheduled_at if last else datetime.now(UTC)
+        next_slot = self._next_dose_slot(medication, after)
+        await self.dose_repo.create_bulk(
+            [Dose(medication_id=medication.id, scheduled_at=next_slot, status=DoseStatus.PENDING)]
+        )
+        await cache_delete_pattern(f"calendar:{medication.pet_id}:*")
+
+    @staticmethod
+    def _next_dose_slot(medication: Medication, after: datetime) -> datetime:
+        times = sorted(datetime.strptime(t, "%H:%M").time() for t in medication.reminder_times)
+        after_time = after.time()
+        for t in times:
+            if t > after_time:
+                return datetime.combine(after.date(), t, tzinfo=UTC)
+        return datetime.combine(after.date() + timedelta(days=1), times[0], tzinfo=UTC)
 
     async def _build_stats(self, med: Medication) -> MedicationStatsResponse:
         counts = await self.dose_repo.get_status_counts(med.id)

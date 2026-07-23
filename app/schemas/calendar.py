@@ -43,3 +43,20 @@ class DoseResponse(BaseModel):
     notes: str | None
 
     model_config = {"from_attributes": True}
+
+
+class CalendarMonthPetEntry(BaseModel):
+    pet_id: int
+    pet_name: str
+    initial: str
+
+
+class CalendarMonthDay(BaseModel):
+    date: date
+    pets: list[CalendarMonthPetEntry]
+
+
+class CalendarMonthResponse(BaseModel):
+    year: int
+    month: int
+    days: list[CalendarMonthDay]

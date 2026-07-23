@@ -1,9 +1,8 @@
 
-from datetime import date
-
-from sqlalchemy import and_, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.dose import Dose, DoseStatus
 from app.models.medication import Medication
 from app.schemas.medication import MedicationCreate, MedicationUpdate
 
@@ -23,16 +22,20 @@ class MedicationRepository:
         result = await self.db.execute(q)
         return list(result.scalars().all())
 
-    async def get_ended_by_pet(self, pet_id: int, today: date) -> list[Medication]:
-        """Medications whose course has ended — either cancelled or past their end_date."""
+    async def get_ended_by_pet(self, pet_id: int) -> list[Medication]:
+        """Medications whose course has ended — either cancelled, or with no pending
+        doses left (a missed/skipped dose keeps getting replaced further down the
+        schedule, so "past end_date" alone does not mean the course is done)."""
+        has_pending = (
+            select(Dose.id)
+            .where(Dose.medication_id == Medication.id, Dose.status == DoseStatus.PENDING)
+            .exists()
+        )
         result = await self.db.execute(
             select(Medication).where(
                 Medication.pet_id == pet_id,
                 Medication.is_deleted.is_(False),
-                or_(
-                    Medication.is_active.is_(False),
-                    and_(Medication.end_date.isnot(None), Medication.end_date < today),
-                ),
+                or_(Medication.is_active.is_(False), ~has_pending),
             )
         )
         return list(result.scalars().all())

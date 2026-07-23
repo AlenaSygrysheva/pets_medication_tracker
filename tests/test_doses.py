@@ -116,6 +116,172 @@ async def test_cancel_medication_not_found_returns_404(
 
 
 @pytest.mark.asyncio
+async def test_missed_dose_is_replaced_by_new_pending_dose(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    """A missed dose must not shrink the course — a fresh pending dose should
+    appear right after the last one, keeping the taken-dose target reachable."""
+    pet_res = await client.post(
+        "/api/v1/pets", headers=auth_headers, json={"name": "ПродлениеТест", "species": "кот"}
+    )
+    pet_id = pet_res.json()["id"]
+    today = date.today()
+
+    med_res = await client.post("/api/v1/medications", headers=auth_headers, json={
+        "pet_id": pet_id, "name": "ОднаДоза", "dosage": "1мг",
+        "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": today.isoformat(),
+    })
+    med_id = med_res.json()["id"]
+
+    cal_res = await client.get(
+        f"/api/v1/calendar/pet/{pet_id}/{today.isoformat()}", headers=auth_headers
+    )
+    dose_id = cal_res.json()["doses"][0]["dose_id"]
+
+    await client.patch(f"/api/v1/doses/{dose_id}", headers=auth_headers, json={"status": "missed"})
+
+    tomorrow = (today + timedelta(days=1)).isoformat()
+    cal_tomorrow = await client.get(f"/api/v1/calendar/pet/{pet_id}/{tomorrow}", headers=auth_headers)
+    doses_tomorrow = cal_tomorrow.json()["doses"]
+    assert len(doses_tomorrow) == 1
+    assert doses_tomorrow[0]["status"] == "pending"
+    assert doses_tomorrow[0]["medication_id"] == med_id
+
+
+@pytest.mark.asyncio
+async def test_skipped_dose_is_replaced_by_new_pending_dose(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    pet_res = await client.post(
+        "/api/v1/pets", headers=auth_headers, json={"name": "СкипТест", "species": "кот"}
+    )
+    pet_id = pet_res.json()["id"]
+    today = date.today()
+
+    await client.post("/api/v1/medications", headers=auth_headers, json={
+        "pet_id": pet_id, "name": "ОднаДоза2", "dosage": "1мг",
+        "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": today.isoformat(),
+    })
+
+    cal_res = await client.get(
+        f"/api/v1/calendar/pet/{pet_id}/{today.isoformat()}", headers=auth_headers
+    )
+    dose_id = cal_res.json()["doses"][0]["dose_id"]
+
+    await client.patch(f"/api/v1/doses/{dose_id}", headers=auth_headers, json={"status": "skipped"})
+
+    tomorrow = (today + timedelta(days=1)).isoformat()
+    cal_tomorrow = await client.get(f"/api/v1/calendar/pet/{pet_id}/{tomorrow}", headers=auth_headers)
+    assert len(cal_tomorrow.json()["doses"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_taken_dose_is_not_replaced(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    pet_res = await client.post(
+        "/api/v1/pets", headers=auth_headers, json={"name": "ТейкенТест", "species": "кот"}
+    )
+    pet_id = pet_res.json()["id"]
+    today = date.today()
+
+    await client.post("/api/v1/medications", headers=auth_headers, json={
+        "pet_id": pet_id, "name": "ОднаДоза3", "dosage": "1мг",
+        "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": today.isoformat(),
+    })
+
+    cal_res = await client.get(
+        f"/api/v1/calendar/pet/{pet_id}/{today.isoformat()}", headers=auth_headers
+    )
+    dose_id = cal_res.json()["doses"][0]["dose_id"]
+
+    await client.patch(f"/api/v1/doses/{dose_id}", headers=auth_headers, json={"status": "taken"})
+
+    tomorrow = (today + timedelta(days=1)).isoformat()
+    cal_tomorrow = await client.get(f"/api/v1/calendar/pet/{pet_id}/{tomorrow}", headers=auth_headers)
+    assert len(cal_tomorrow.json()["doses"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_cancelled_course_does_not_get_extended(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    pet_res = await client.post(
+        "/api/v1/pets", headers=auth_headers, json={"name": "ОтменаПродление", "species": "кот"}
+    )
+    pet_id = pet_res.json()["id"]
+    today = date.today()
+    end = today + timedelta(days=3)
+
+    med_res = await client.post("/api/v1/medications", headers=auth_headers, json={
+        "pet_id": pet_id, "name": "ДолгийКурс", "dosage": "1мг",
+        "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": end.isoformat(),
+    })
+    med_id = med_res.json()["id"]
+
+    await client.post(
+        f"/api/v1/medications/{med_id}/cancel",
+        headers=auth_headers,
+        params={"as_of_date": today.isoformat()},
+    )
+
+    cal_res = await client.get(
+        f"/api/v1/calendar/pet/{pet_id}/{today.isoformat()}", headers=auth_headers
+    )
+    dose_id = cal_res.json()["doses"][0]["dose_id"]
+    assert cal_res.json()["doses"][0]["status"] == "cancelled"
+
+    res = await client.patch(
+        f"/api/v1/doses/{dose_id}", headers=auth_headers, json={"status": "missed"}
+    )
+    assert res.status_code == 200
+
+    day_after_end = (end + timedelta(days=1)).isoformat()
+    cal_after = await client.get(f"/api/v1/calendar/pet/{pet_id}/{day_after_end}", headers=auth_headers)
+    assert cal_after.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_stats_reflect_course_still_pending_after_miss_then_completes(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    pet_res = await client.post(
+        "/api/v1/pets", headers=auth_headers, json={"name": "СтатПродление", "species": "кот"}
+    )
+    pet_id = pet_res.json()["id"]
+    today = date.today()
+
+    med_res = await client.post("/api/v1/medications", headers=auth_headers, json={
+        "pet_id": pet_id, "name": "КурсСПродлением", "dosage": "1мг",
+        "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": today.isoformat(),
+    })
+    med_id = med_res.json()["id"]
+
+    cal_res = await client.get(
+        f"/api/v1/calendar/pet/{pet_id}/{today.isoformat()}", headers=auth_headers
+    )
+    dose_id = cal_res.json()["doses"][0]["dose_id"]
+    await client.patch(f"/api/v1/doses/{dose_id}", headers=auth_headers, json={"status": "missed"})
+
+    stats_res = await client.get(f"/api/v1/medications/pet/{pet_id}/stats", headers=auth_headers)
+    assert all(s["medication_id"] != med_id for s in stats_res.json())
+
+    tomorrow = (today + timedelta(days=1)).isoformat()
+    cal_tomorrow = await client.get(f"/api/v1/calendar/pet/{pet_id}/{tomorrow}", headers=auth_headers)
+    replacement_id = cal_tomorrow.json()["doses"][0]["dose_id"]
+    await client.patch(
+        f"/api/v1/doses/{replacement_id}", headers=auth_headers, json={"status": "taken"}
+    )
+
+    stats_res2 = await client.get(f"/api/v1/medications/pet/{pet_id}/stats", headers=auth_headers)
+    entries = [s for s in stats_res2.json() if s["medication_id"] == med_id]
+    assert len(entries) == 1
+    assert entries[0]["ended_reason"] == "completed"
+    assert entries[0]["taken"] == 1
+    assert entries[0]["missed"] == 1
+
+
+@pytest.mark.asyncio
 async def test_cancel_medication_wrong_user_returns_403(client: AsyncClient) -> None:
     r1 = await client.post("/api/v1/auth/register", json={
         "email": "dose_owner@example.com", "username": "dose_owner", "password": "pass1234",

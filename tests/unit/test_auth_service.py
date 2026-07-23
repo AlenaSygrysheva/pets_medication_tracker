@@ -1,8 +1,9 @@
 """Unit tests for AuthService — all DB calls are mocked."""
 import unittest
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.core.exceptions import ConflictError, UnauthorizedError
+from app.core.exceptions import BadRequestError, ConflictError, UnauthorizedError
 from app.core.security import create_access_token, create_refresh_token, hash_password
 from app.models.user import User
 from app.services.auth_service import AuthService
@@ -21,6 +22,8 @@ def _make_user(
     user.username = username
     user.hashed_password = hashed_pw
     user.is_active = is_active
+    user.reset_token_hash = None
+    user.reset_token_expires_at = None
     return user
 
 
@@ -131,6 +134,75 @@ class TestAuthServiceTokens(unittest.IsolatedAsyncioTestCase):
     async def test_refresh_invalid_token_raises(self) -> None:
         with self.assertRaises(UnauthorizedError):
             await self.service.refresh("not.a.token")
+
+
+class TestAuthServiceForgotPassword(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.service = AuthService(AsyncMock())
+        self.service.repo = AsyncMock()
+
+    @patch("app.services.auth_service.send_email", new_callable=AsyncMock)
+    async def test_unknown_email_sends_nothing(self, mock_send: AsyncMock) -> None:
+        self.service.repo.get_by_email = AsyncMock(return_value=None)
+
+        await self.service.forgot_password("ghost@test.com")
+
+        mock_send.assert_not_called()
+        self.service.repo.set_reset_token.assert_not_called()
+
+    @patch("app.services.auth_service.send_email", new_callable=AsyncMock)
+    async def test_inactive_user_sends_nothing(self, mock_send: AsyncMock) -> None:
+        user = _make_user(is_active=False)
+        self.service.repo.get_by_email = AsyncMock(return_value=user)
+
+        await self.service.forgot_password(user.email)
+
+        mock_send.assert_not_called()
+        self.service.repo.set_reset_token.assert_not_called()
+
+    @patch("app.services.auth_service.send_email", new_callable=AsyncMock)
+    async def test_known_email_sets_token_and_sends_email(self, mock_send: AsyncMock) -> None:
+        user = _make_user(user_id=7, email="u@test.com")
+        self.service.repo.get_by_email = AsyncMock(return_value=user)
+
+        await self.service.forgot_password("u@test.com")
+
+        self.service.repo.set_reset_token.assert_awaited_once()
+        set_args = self.service.repo.set_reset_token.call_args[0]
+        self.assertEqual(set_args[0], user)
+        mock_send.assert_awaited_once()
+        self.assertEqual(mock_send.call_args[0][0], "u@test.com")
+
+
+class TestAuthServiceResetPassword(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.service = AuthService(AsyncMock())
+        self.service.repo = AsyncMock()
+
+    async def test_unknown_token_raises(self) -> None:
+        self.service.repo.get_by_reset_token_hash = AsyncMock(return_value=None)
+        with self.assertRaises(BadRequestError):
+            await self.service.reset_password("bad-token", "newpassword123")
+
+    async def test_expired_token_raises(self) -> None:
+        user = _make_user()
+        user.reset_token_expires_at = datetime.now(UTC) - timedelta(minutes=1)
+        self.service.repo.get_by_reset_token_hash = AsyncMock(return_value=user)
+
+        with self.assertRaises(BadRequestError):
+            await self.service.reset_password("some-token", "newpassword123")
+
+        self.service.repo.update_password.assert_not_called()
+
+    async def test_valid_token_updates_password(self) -> None:
+        user = _make_user()
+        user.reset_token_expires_at = datetime.now(UTC) + timedelta(minutes=10)
+        self.service.repo.get_by_reset_token_hash = AsyncMock(return_value=user)
+
+        await self.service.reset_password("some-token", "newpassword123")
+
+        self.service.repo.update_password.assert_awaited_once()
+        self.assertEqual(self.service.repo.update_password.call_args[0][0], user)
 
 
 if __name__ == "__main__":

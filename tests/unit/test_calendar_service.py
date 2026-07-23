@@ -43,6 +43,7 @@ def _make_service() -> CalendarService:
     service = CalendarService(AsyncMock())
     service.pet_repo = AsyncMock()
     service.dose_repo = AsyncMock()
+    service.medication_service = AsyncMock()
     return service
 
 
@@ -177,6 +178,78 @@ class TestCalendarServiceRecordDose(unittest.IsolatedAsyncioTestCase):
             await self.service.record_dose(
                 dose_id=1, owner_id=1, data=MagicMock()
             )
+
+    @patch("app.services.calendar_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_missed_triggers_extension(self, _mock_del: AsyncMock) -> None:
+        dose = _make_dose(status=DoseStatus.PENDING)
+        updated = _make_dose(status=DoseStatus.MISSED)
+        self.service.dose_repo.get_by_id = AsyncMock(return_value=dose)
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=_make_pet())
+        self.service.dose_repo.update_status = AsyncMock(return_value=updated)
+
+        action = MagicMock()
+        action.status = DoseStatus.MISSED
+        action.taken_at = None
+        action.notes = None
+
+        await self.service.record_dose(dose_id=1, owner_id=1, data=action)
+
+        self.service.medication_service.extend_after_unresolved_dose.assert_awaited_once_with(
+            dose.medication
+        )
+
+    @patch("app.services.calendar_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_skipped_triggers_extension(self, _mock_del: AsyncMock) -> None:
+        dose = _make_dose(status=DoseStatus.PENDING)
+        updated = _make_dose(status=DoseStatus.SKIPPED)
+        self.service.dose_repo.get_by_id = AsyncMock(return_value=dose)
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=_make_pet())
+        self.service.dose_repo.update_status = AsyncMock(return_value=updated)
+
+        action = MagicMock()
+        action.status = DoseStatus.SKIPPED
+        action.taken_at = None
+        action.notes = None
+
+        await self.service.record_dose(dose_id=1, owner_id=1, data=action)
+
+        self.service.medication_service.extend_after_unresolved_dose.assert_awaited_once()
+
+    @patch("app.services.calendar_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_taken_does_not_trigger_extension(self, _mock_del: AsyncMock) -> None:
+        dose = _make_dose(status=DoseStatus.PENDING)
+        updated = _make_dose(status=DoseStatus.TAKEN)
+        self.service.dose_repo.get_by_id = AsyncMock(return_value=dose)
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=_make_pet())
+        self.service.dose_repo.update_status = AsyncMock(return_value=updated)
+
+        action = MagicMock()
+        action.status = DoseStatus.TAKEN
+        action.taken_at = None
+        action.notes = None
+
+        await self.service.record_dose(dose_id=1, owner_id=1, data=action)
+
+        self.service.medication_service.extend_after_unresolved_dose.assert_not_called()
+
+    @patch("app.services.calendar_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_re_saving_same_missed_status_does_not_re_trigger_extension(
+        self, _mock_del: AsyncMock
+    ) -> None:
+        dose = _make_dose(status=DoseStatus.MISSED)
+        updated = _make_dose(status=DoseStatus.MISSED)
+        self.service.dose_repo.get_by_id = AsyncMock(return_value=dose)
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=_make_pet())
+        self.service.dose_repo.update_status = AsyncMock(return_value=updated)
+
+        action = MagicMock()
+        action.status = DoseStatus.MISSED
+        action.taken_at = None
+        action.notes = "снова"
+
+        await self.service.record_dose(dose_id=1, owner_id=1, data=action)
+
+        self.service.medication_service.extend_after_unresolved_dose.assert_not_called()
 
     @patch("app.services.calendar_service.cache_delete_pattern", new_callable=AsyncMock)
     async def test_cache_invalidated_for_correct_day(self, mock_del: AsyncMock) -> None:

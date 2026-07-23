@@ -297,6 +297,70 @@ class TestMedicationServiceStats(unittest.IsolatedAsyncioTestCase):
             await self.service.get_ended_medications_stats(pet_id=99, owner_id=1)
 
 
+class TestMedicationServiceExtendAfterUnresolvedDose(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.service = _make_service()
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_cancelled_course_is_not_extended(self, _cache: AsyncMock) -> None:
+        med = _make_medication(med_id=3, frequency=1)
+        med.is_active = False
+        self.service.dose_repo.get_last_scheduled = AsyncMock()
+        self.service.dose_repo.create_bulk = AsyncMock()
+
+        await self.service.extend_after_unresolved_dose(med)
+
+        self.service.dose_repo.get_last_scheduled.assert_not_called()
+        self.service.dose_repo.create_bulk.assert_not_called()
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_active_course_gets_one_replacement_dose(self, _cache: AsyncMock) -> None:
+        med = _make_medication(med_id=3, frequency=1)
+        med.is_active = True
+        med.reminder_times = ["08:00"]
+        last = MagicMock(spec=Dose)
+        last.scheduled_at = datetime(2026, 7, 23, 8, 0, tzinfo=UTC)
+        self.service.dose_repo.get_last_scheduled = AsyncMock(return_value=last)
+        self.service.dose_repo.create_bulk = AsyncMock()
+
+        await self.service.extend_after_unresolved_dose(med)
+
+        self.service.dose_repo.create_bulk.assert_awaited_once()
+        created: list[Dose] = self.service.dose_repo.create_bulk.call_args[0][0]
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0].status, DoseStatus.PENDING)
+        self.assertEqual(created[0].scheduled_at, datetime(2026, 7, 24, 8, 0, tzinfo=UTC))
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_next_slot_same_day_when_more_reminder_times_remain(self, _cache: AsyncMock) -> None:
+        med = _make_medication(med_id=3, frequency=2)
+        med.is_active = True
+        med.reminder_times = ["08:00", "20:00"]
+        last = MagicMock(spec=Dose)
+        last.scheduled_at = datetime(2026, 7, 23, 8, 0, tzinfo=UTC)
+        self.service.dose_repo.get_last_scheduled = AsyncMock(return_value=last)
+        self.service.dose_repo.create_bulk = AsyncMock()
+
+        await self.service.extend_after_unresolved_dose(med)
+
+        created: list[Dose] = self.service.dose_repo.create_bulk.call_args[0][0]
+        self.assertEqual(created[0].scheduled_at, datetime(2026, 7, 23, 20, 0, tzinfo=UTC))
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_invalidates_calendar_cache(self, mock_cache: AsyncMock) -> None:
+        med = _make_medication(med_id=3, pet_id=7, frequency=1)
+        med.is_active = True
+        med.reminder_times = ["08:00"]
+        last = MagicMock(spec=Dose)
+        last.scheduled_at = datetime(2026, 7, 23, 8, 0, tzinfo=UTC)
+        self.service.dose_repo.get_last_scheduled = AsyncMock(return_value=last)
+        self.service.dose_repo.create_bulk = AsyncMock()
+
+        await self.service.extend_after_unresolved_dose(med)
+
+        mock_cache.assert_awaited_once_with("calendar:7:*")
+
+
 class TestDoseGenerationAlgorithm(unittest.TestCase):
     """Tests for the dose scheduling algorithm in MedicationService._generate_doses."""
 
