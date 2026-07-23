@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.dose import Dose, DoseStatus
+from app.models.drug import Drug
 from app.models.medication import Medication
 from app.models.pet import Pet
 from app.services.calendar_service import CalendarService
@@ -23,8 +24,12 @@ def _make_dose(
     med_id: int = 1,
     status: DoseStatus = DoseStatus.PENDING,
 ) -> Dose:
+    drug = MagicMock(spec=Drug)
+    drug.name = "TestMed"
+    drug.strength = "10mg"
+
     med = MagicMock(spec=Medication)
-    med.name = "TestMed"
+    med.drug = drug
     med.dosage = "10mg"
     med.pet_id = 1
 

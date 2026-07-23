@@ -222,8 +222,12 @@
     <div id="page-medications" class="page px-4 space-y-4 hidden">
       <div class="flex items-center justify-between py-2">
         <h2 class="font-semibold text-gray-800">Препараты</h2>
-        <button onclick="openAddMedModal()"
-          class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium">+ Добавить</button>
+        <div class="flex gap-2">
+          <button onclick="openDrugCatalogModal()"
+            class="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium">📋 Каталог</button>
+          <button onclick="openAddMedModal()"
+            class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium">+ Курс</button>
+        </div>
       </div>
 
       <!-- Pet filter -->
@@ -312,14 +316,29 @@
         class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
         <option value="">Выберите питомца *</option>
       </select>
-      <input type="text" id="medName" placeholder="Название препарата *" required
+      <div>
+        <select id="medDrugId" required
+          class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="">Выберите препарат *</option>
+        </select>
+        <button type="button" onclick="openAddDrugModal(true)" class="text-xs text-blue-500 hover:underline mt-1">+ Новый препарат в каталог</button>
+      </div>
+      <input type="text" id="medDosage" placeholder="Дозировка за приём (напр. 1 таблетка) *" required
+        oninput="updateDosageCalculator()"
         class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-      <input type="text" id="medDosage" placeholder="Дозировка (напр. 5мг) *" required
-        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <div class="flex gap-4 -mt-1">
+        <label class="flex items-center gap-1.5 text-xs text-gray-600">
+          <input type="radio" name="medDosageForm" value="tablet" checked onchange="updateDosageCalculator()" /> Таблетка
+        </label>
+        <label class="flex items-center gap-1.5 text-xs text-gray-600">
+          <input type="radio" name="medDosageForm" value="liquid" onchange="updateDosageCalculator()" /> Жидкость
+        </label>
+      </div>
+      <div id="medDosageHint" class="text-xs text-blue-700 bg-blue-50 rounded-xl px-3 py-2 hidden"></div>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Частота в день *</label>
-          <select id="medFrequency" onchange="renderReminderTimeInputs()"
+          <select id="medFrequency" onchange="renderReminderTimeInputs(); updateDosageCalculator()"
             class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
             <option value="1">1 раз</option>
             <option value="2">2 раза</option>
@@ -330,7 +349,7 @@
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Дата начала *</label>
           <input type="text" id="medStartDate" required placeholder="дд/мм/гггг" maxlength="10"
-            oninput="autoDateSlash(this)"
+            oninput="autoDateSlash(this); updateDosageCalculator()"
             class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
         </div>
       </div>
@@ -341,7 +360,7 @@
       <div>
         <label class="text-xs text-gray-500 mb-1 block">Дата окончания (необязательно)</label>
         <input type="text" id="medEndDate" placeholder="дд/мм/гггг" maxlength="10"
-          oninput="autoDateSlash(this)"
+          oninput="autoDateSlash(this); updateDosageCalculator()"
           class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
       </div>
       <textarea id="medInstructions" placeholder="Инструкции (до/после еды и т.д.)" rows="2"
@@ -351,6 +370,48 @@
         Сохранить
       </button>
     </form>
+  </div>
+</div>
+
+<!-- Drug Catalog Modal -->
+<div id="drugCatalogModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Каталог препаратов</h3>
+      <button onclick="closeModal('drugCatalogModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <button onclick="openAddDrugModal(false)"
+      class="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium">+ Добавить препарат</button>
+    <div id="drugCatalogList" class="space-y-3"></div>
+    <div id="noDrugs" class="text-center py-10 text-gray-400 hidden">
+      <div class="text-4xl mb-2">📋</div>
+      <div class="text-sm">Каталог пуст</div>
+    </div>
+  </div>
+</div>
+
+<!-- Drug Modal (create/edit catalog entry) -->
+<div id="drugModal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 id="drugModalTitle" class="font-semibold text-gray-800">Добавить препарат</h3>
+      <button onclick="closeModal('drugModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <form onsubmit="saveDrug(event)" class="space-y-3">
+      <input type="hidden" id="drugId" />
+      <input type="hidden" id="drugFromMedModal" />
+      <input type="text" id="drugName" placeholder="Название *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="text" id="drugStrength" placeholder="Сколько в таблетке, мг или г (напр. 15 мг) *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <textarea id="drugPurpose" placeholder="Для чего *" rows="2" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Сохранить
+      </button>
+    </form>
+    <div id="drugModalError" class="text-xs text-center text-red-500 hidden"></div>
   </div>
 </div>
 
@@ -784,9 +845,67 @@ function getReminderTimes() {
   return Array.from(document.querySelectorAll('#medReminderTimes input[type="time"]')).map(i => i.value);
 }
 
-function openAddMedModal() {
+// ===== DOSAGE CALCULATOR =====
+// Parses the leading number out of a free-text dosage like "1/7", "0.05 мл", "2 таблетки".
+function parseDosageAmount(str) {
+  if (!str) return null;
+  const trimmed = str.trim();
+  const fraction = trimmed.match(/^(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/);
+  if (fraction) {
+    const num = parseFloat(fraction[1].replace(',', '.'));
+    const den = parseFloat(fraction[2].replace(',', '.'));
+    return den ? num / den : null;
+  }
+  const plain = trimmed.match(/^(\d+(?:[.,]\d+)?)/);
+  return plain ? parseFloat(plain[1].replace(',', '.')) : null;
+}
+
+function courseDaysCount() {
+  const start = toApiDate(document.getElementById('medStartDate').value);
+  const end = toApiDate(document.getElementById('medEndDate').value);
+  if (!start || !end) return null;
+  const days = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
+  return days > 0 ? days : null;
+}
+
+function pluralizeRu(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+
+function formatAmount(n) {
+  return String(Math.round(n * 100) / 100);
+}
+
+function updateDosageCalculator() {
+  const hint = document.getElementById('medDosageHint');
+  const amount = parseDosageAmount(document.getElementById('medDosage').value);
+  const frequency = parseInt(document.getElementById('medFrequency').value) || 0;
+  const days = courseDaysCount();
+  const form = document.querySelector('input[name="medDosageForm"]:checked')?.value || 'tablet';
+
+  if (!amount || !frequency || !days) {
+    hint.classList.add('hidden');
+    return;
+  }
+
+  const total = amount * frequency * days;
+  const rounded = Math.round(total * 100) / 100;
+  const amountText = formatAmount(rounded);
+  const unitText = form === 'tablet'
+    ? `${amountText} ${Number.isInteger(rounded) ? pluralizeRu(rounded, 'таблетка', 'таблетки', 'таблеток') : 'таблетки'}`
+    : `${amountText} мл препарата`;
+
+  hint.textContent = `Кстати, на этот курс вам понадобится ${unitText}!`;
+  hint.classList.remove('hidden');
+}
+
+async function openAddMedModal() {
   document.getElementById('medId').value = '';
-  document.getElementById('medModalTitle').textContent = 'Добавить препарат';
+  document.getElementById('medModalTitle').textContent = 'Добавить курс';
   document.getElementById('medPetId').innerHTML = '<option value="">Выберите питомца *</option>';
   document.getElementById('medPetId').disabled = false;
   pets.forEach(p => {
@@ -796,22 +915,25 @@ function openAddMedModal() {
     if (p.id === selectedPetId) opt.selected = true;
     document.getElementById('medPetId').appendChild(opt);
   });
-  document.getElementById('medName').value = '';
+  await loadDrugs();
+  populateDrugSelect();
   document.getElementById('medDosage').value = '';
   document.getElementById('medFrequency').value = '1';
   document.getElementById('medStartDate').value = fromApiDate(toLocalIsoDate(new Date()));
   document.getElementById('medStartDate').disabled = false;
   document.getElementById('medEndDate').value = '';
   document.getElementById('medInstructions').value = '';
+  document.querySelector('input[name="medDosageForm"][value="tablet"]').checked = true;
   renderReminderTimeInputs();
+  updateDosageCalculator();
   openModal('medModal');
 }
 
-function editMedication(id) {
+async function editMedication(id) {
   const med = currentMeds.find(m => m.id === id);
   if (!med) return;
   document.getElementById('medId').value = med.id;
-  document.getElementById('medModalTitle').textContent = 'Редактировать препарат';
+  document.getElementById('medModalTitle').textContent = 'Редактировать курс';
   document.getElementById('medPetId').innerHTML = '';
   const opt = document.createElement('option');
   opt.value = med.pet_id;
@@ -819,24 +941,28 @@ function editMedication(id) {
   opt.selected = true;
   document.getElementById('medPetId').appendChild(opt);
   document.getElementById('medPetId').disabled = true;
-  document.getElementById('medName').value = med.name;
+  await loadDrugs();
+  populateDrugSelect(med.drug_id);
   document.getElementById('medDosage').value = med.dosage;
   document.getElementById('medFrequency').value = med.frequency_per_day;
   document.getElementById('medStartDate').value = fromApiDate(med.start_date);
   document.getElementById('medStartDate').disabled = false;
   document.getElementById('medEndDate').value = med.end_date ? fromApiDate(med.end_date) : '';
   document.getElementById('medInstructions').value = med.instructions || '';
+  document.querySelector('input[name="medDosageForm"][value="tablet"]').checked = true;
   renderReminderTimeInputs(med.reminder_times);
+  updateDosageCalculator();
   openModal('medModal');
 }
 
 async function saveMedication(e) {
   e.preventDefault();
   const medId = document.getElementById('medId').value;
+  const drugId = parseInt(document.getElementById('medDrugId').value);
   let res;
   if (medId) {
     const body = {
-      name: document.getElementById('medName').value,
+      drug_id: drugId,
       dosage: document.getElementById('medDosage').value,
       frequency_per_day: parseInt(document.getElementById('medFrequency').value),
       reminder_times: getReminderTimes(),
@@ -848,7 +974,7 @@ async function saveMedication(e) {
   } else {
     const body = {
       pet_id: parseInt(document.getElementById('medPetId').value),
-      name: document.getElementById('medName').value,
+      drug_id: drugId,
       dosage: document.getElementById('medDosage').value,
       frequency_per_day: parseInt(document.getElementById('medFrequency').value),
       reminder_times: getReminderTimes(),
@@ -861,7 +987,7 @@ async function saveMedication(e) {
   if (res.ok) {
     closeModal('medModal');
     await renderMedications();
-    showToast(medId ? 'Препарат обновлён' : 'Препарат добавлен, расписание создано');
+    showToast(medId ? 'Курс обновлён' : 'Курс добавлен, расписание создано');
   } else {
     const err = await res.json();
     showToast(err.detail || 'Ошибка сохранения', true);
@@ -886,7 +1012,7 @@ async function renderMedications() {
         <div class="flex items-start justify-between">
           <div>
             <div class="flex items-center gap-2">
-              <span class="font-semibold text-gray-800">${esc(med.name)}</span>
+              <span class="font-semibold text-gray-800">${esc(med.drug.name)} ${esc(med.drug.strength)}</span>
               <span class="text-xs px-2 py-0.5 rounded-full ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${active ? 'Активен' : 'Завершён'}</span>
             </div>
             <div class="text-sm text-gray-600 mt-1">${esc(med.dosage)} · ${med.frequency_per_day}x/день · ${(med.reminder_times || []).join(', ')}</div>
@@ -904,9 +1030,129 @@ async function renderMedications() {
 }
 
 async function deleteMedication(id) {
-  if (!confirm('Удалить препарат? Он исчезнет из списка препаратов, но уже отмеченные приёмы останутся в календаре.')) return;
+  if (!confirm('Удалить курс? Он исчезнет из списка, но уже отмеченные приёмы останутся в календаре.')) return;
   const res = await apiFetch(`/medications/${id}`, 'DELETE');
-  if (res.ok) { await renderMedications(); showToast('Препарат удалён'); }
+  if (res.ok) { await renderMedications(); showToast('Курс удалён'); }
+}
+
+// ===== DRUG CATALOG =====
+let currentDrugs = [];
+
+async function loadDrugs() {
+  const res = await apiFetch('/drugs');
+  if (res.ok) currentDrugs = await res.json();
+}
+
+function populateDrugSelect(selectedDrugId) {
+  const select = document.getElementById('medDrugId');
+  select.innerHTML = '<option value="">Выберите препарат *</option>';
+  currentDrugs.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.id;
+    opt.textContent = `${d.name} ${d.strength}`;
+    if (d.id === selectedDrugId) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+async function openDrugCatalogModal() {
+  await loadDrugs();
+  renderDrugCatalog();
+  openModal('drugCatalogModal');
+}
+
+function renderDrugCatalog() {
+  const list = document.getElementById('drugCatalogList');
+  const empty = document.getElementById('noDrugs');
+  list.innerHTML = '';
+  if (!currentDrugs.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  currentDrugs.forEach(d => {
+    list.insertAdjacentHTML('beforeend', `
+      <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+        <div class="flex items-start justify-between">
+          <div class="min-w-0">
+            <div class="font-semibold text-gray-800">${esc(d.name)} ${esc(d.strength)}</div>
+            <div class="text-xs text-gray-500 mt-0.5">${esc(d.purpose)}</div>
+          </div>
+          <div class="flex gap-1 flex-shrink-0">
+            <button onclick="editDrug(${d.id})" class="text-blue-400 hover:text-blue-600 text-sm px-2">✏️</button>
+            <button onclick="deleteDrug(${d.id})" class="text-red-400 hover:text-red-600 text-sm px-2">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `);
+  });
+}
+
+function openAddDrugModal(fromMedModal) {
+  document.getElementById('drugId').value = '';
+  document.getElementById('drugFromMedModal').value = fromMedModal ? '1' : '';
+  document.getElementById('drugModalTitle').textContent = 'Добавить препарат';
+  document.getElementById('drugName').value = '';
+  document.getElementById('drugStrength').value = '';
+  document.getElementById('drugPurpose').value = '';
+  document.getElementById('drugModalError').classList.add('hidden');
+  openModal('drugModal');
+}
+
+function editDrug(id) {
+  const drug = currentDrugs.find(d => d.id === id);
+  if (!drug) return;
+  document.getElementById('drugId').value = drug.id;
+  document.getElementById('drugFromMedModal').value = '';
+  document.getElementById('drugModalTitle').textContent = 'Редактировать препарат';
+  document.getElementById('drugName').value = drug.name;
+  document.getElementById('drugStrength').value = drug.strength;
+  document.getElementById('drugPurpose').value = drug.purpose;
+  document.getElementById('drugModalError').classList.add('hidden');
+  openModal('drugModal');
+}
+
+async function saveDrug(e) {
+  e.preventDefault();
+  const drugId = document.getElementById('drugId').value;
+  const fromMedModal = document.getElementById('drugFromMedModal').value === '1';
+  const body = {
+    name: document.getElementById('drugName').value,
+    strength: document.getElementById('drugStrength').value,
+    purpose: document.getElementById('drugPurpose').value,
+  };
+  const res = drugId
+    ? await apiFetch(`/drugs/${drugId}`, 'PATCH', body)
+    : await apiFetch('/drugs', 'POST', body);
+
+  if (!res.ok) {
+    const err = await res.json();
+    const errEl = document.getElementById('drugModalError');
+    errEl.textContent = err.detail || 'Ошибка сохранения';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const saved = await res.json();
+  await loadDrugs();
+  closeModal('drugModal');
+
+  if (fromMedModal) {
+    populateDrugSelect(saved.id);
+  } else {
+    renderDrugCatalog();
+  }
+  showToast(drugId ? 'Препарат обновлён' : 'Препарат добавлен в каталог');
+}
+
+async function deleteDrug(id) {
+  if (!confirm('Удалить препарат из каталога?')) return;
+  const res = await apiFetch(`/drugs/${id}`, 'DELETE');
+  if (res.ok) {
+    await loadDrugs();
+    renderDrugCatalog();
+    showToast('Препарат удалён из каталога');
+  } else {
+    const err = await res.json();
+    showToast(err.detail || 'Не удалось удалить препарат', true);
+  }
 }
 
 // ===== STATS =====
@@ -1077,7 +1323,7 @@ function openDoseModal(doseId, medicationId, medName, dosage, time) {
   activeDoseId = doseId;
   activeDoseMedId = medicationId;
   document.getElementById('doseModalInfo').innerHTML =
-    `<strong>${esc(medName)}</strong><br><span class="text-gray-500">${esc(dosage)} · ${time}</span>`;
+    `<strong>${esc(medName)}</strong><br><span class="text-gray-500">Дать ${esc(dosage)} · ${time}</span>`;
   document.getElementById('doseNotes').value = '';
   openModal('doseModal');
 }

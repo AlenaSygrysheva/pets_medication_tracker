@@ -1,6 +1,8 @@
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy.sql import Select
 
 from app.models.dose import Dose, DoseStatus
 from app.models.medication import Medication
@@ -11,12 +13,16 @@ class MedicationRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @staticmethod
+    def _with_drug() -> Select[tuple[Medication]]:
+        return select(Medication).options(selectinload(Medication.drug))
+
     async def get_by_id(self, medication_id: int) -> Medication | None:
-        result = await self.db.execute(select(Medication).where(Medication.id == medication_id))
+        result = await self.db.execute(self._with_drug().where(Medication.id == medication_id))
         return result.scalar_one_or_none()
 
     async def get_all_by_pet(self, pet_id: int, active_only: bool = False) -> list[Medication]:
-        q = select(Medication).where(Medication.pet_id == pet_id, Medication.is_deleted.is_(False))
+        q = self._with_drug().where(Medication.pet_id == pet_id, Medication.is_deleted.is_(False))
         if active_only:
             q = q.where(Medication.is_active.is_(True))
         result = await self.db.execute(q)
@@ -32,7 +38,7 @@ class MedicationRepository:
             .exists()
         )
         result = await self.db.execute(
-            select(Medication).where(
+            self._with_drug().where(
                 Medication.pet_id == pet_id,
                 Medication.is_deleted.is_(False),
                 or_(Medication.is_active.is_(False), ~has_pending),
@@ -44,15 +50,15 @@ class MedicationRepository:
         medication = Medication(**data.model_dump())
         self.db.add(medication)
         await self.db.flush()
-        await self.db.refresh(medication)
-        return medication
+        result = await self.db.execute(self._with_drug().where(Medication.id == medication.id))
+        return result.scalar_one()
 
     async def update(self, medication: Medication, data: MedicationUpdate) -> Medication:
         for field, value in data.model_dump(exclude_none=True).items():
             setattr(medication, field, value)
         await self.db.flush()
-        await self.db.refresh(medication)
-        return medication
+        result = await self.db.execute(self._with_drug().where(Medication.id == medication.id))
+        return result.scalar_one()
 
     async def soft_delete(self, medication: Medication) -> None:
         medication.is_deleted = True

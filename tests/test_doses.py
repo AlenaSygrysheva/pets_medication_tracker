@@ -5,20 +5,41 @@ import pytest
 from httpx import AsyncClient
 
 
+async def _create_drug(
+    client: AsyncClient,
+    headers: dict[str, str],
+    name: str = "Витамин D",
+    strength: str = "500МЕ",
+    purpose: str = "витамин",
+) -> int:
+    """Get-or-create: several tests reuse the same default name+strength under the
+    one shared test user, and duplicates are rejected by the catalog on purpose."""
+    res = await client.post("/api/v1/drugs", headers=headers, json={
+        "name": name, "purpose": purpose, "strength": strength,
+    })
+    if res.status_code == 409:
+        existing = await client.get("/api/v1/drugs", headers=headers)
+        match = next(d for d in existing.json() if d["name"] == name and d["strength"] == strength)
+        return int(match["id"])
+    id_: int = res.json()["id"]
+    return id_
+
+
 async def _create_pet_and_medication(
     client: AsyncClient, auth_headers: dict[str, str], freq: int = 1
 ) -> tuple[int, int, list[dict[str, object]]]:
-    """Helper: create a pet + medication and return (pet_id, med_id, today's doses)."""
+    """Helper: create a pet + drug + medication and return (pet_id, med_id, today's doses)."""
     pet_res = await client.post(
         "/api/v1/pets", headers=auth_headers,
-        json={"name": "ДозаТест", "species": "кошка"},
+        json={"name": "ДозaТест", "species": "кошка"},
     )
     pet_id: int = pet_res.json()["id"]
+    drug_id = await _create_drug(client, auth_headers)
     today = date.today().isoformat()
     end = (date.today() + timedelta(days=2)).isoformat()
 
     med_res = await client.post("/api/v1/medications", headers=auth_headers, json={
-        "pet_id": pet_id, "name": "Витамин D", "dosage": "500МЕ",
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "500МЕ",
         "frequency_per_day": freq, "start_date": today, "end_date": end,
     })
     med_id: int = med_res.json()["id"]
@@ -125,10 +146,11 @@ async def test_missed_dose_is_replaced_by_new_pending_dose(
         "/api/v1/pets", headers=auth_headers, json={"name": "ПродлениеТест", "species": "кот"}
     )
     pet_id = pet_res.json()["id"]
+    drug_id = await _create_drug(client, auth_headers, name="ОднаДоза", strength="1мг")
     today = date.today()
 
     med_res = await client.post("/api/v1/medications", headers=auth_headers, json={
-        "pet_id": pet_id, "name": "ОднаДоза", "dosage": "1мг",
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "1мг",
         "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": today.isoformat(),
     })
     med_id = med_res.json()["id"]
@@ -156,10 +178,11 @@ async def test_skipped_dose_is_replaced_by_new_pending_dose(
         "/api/v1/pets", headers=auth_headers, json={"name": "СкипТест", "species": "кот"}
     )
     pet_id = pet_res.json()["id"]
+    drug_id = await _create_drug(client, auth_headers, name="ОднаДоза2", strength="1мг")
     today = date.today()
 
     await client.post("/api/v1/medications", headers=auth_headers, json={
-        "pet_id": pet_id, "name": "ОднаДоза2", "dosage": "1мг",
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "1мг",
         "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": today.isoformat(),
     })
 
@@ -183,10 +206,11 @@ async def test_taken_dose_is_not_replaced(
         "/api/v1/pets", headers=auth_headers, json={"name": "ТейкенТест", "species": "кот"}
     )
     pet_id = pet_res.json()["id"]
+    drug_id = await _create_drug(client, auth_headers, name="ОднаДоза3", strength="1мг")
     today = date.today()
 
     await client.post("/api/v1/medications", headers=auth_headers, json={
-        "pet_id": pet_id, "name": "ОднаДоза3", "dosage": "1мг",
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "1мг",
         "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": today.isoformat(),
     })
 
@@ -210,11 +234,12 @@ async def test_cancelled_course_does_not_get_extended(
         "/api/v1/pets", headers=auth_headers, json={"name": "ОтменаПродление", "species": "кот"}
     )
     pet_id = pet_res.json()["id"]
+    drug_id = await _create_drug(client, auth_headers, name="ДолгийКурс", strength="1мг")
     today = date.today()
     end = today + timedelta(days=3)
 
     med_res = await client.post("/api/v1/medications", headers=auth_headers, json={
-        "pet_id": pet_id, "name": "ДолгийКурс", "dosage": "1мг",
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "1мг",
         "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": end.isoformat(),
     })
     med_id = med_res.json()["id"]
@@ -249,10 +274,11 @@ async def test_stats_reflect_course_still_pending_after_miss_then_completes(
         "/api/v1/pets", headers=auth_headers, json={"name": "СтатПродление", "species": "кот"}
     )
     pet_id = pet_res.json()["id"]
+    drug_id = await _create_drug(client, auth_headers, name="КурсСПродлением", strength="1мг")
     today = date.today()
 
     med_res = await client.post("/api/v1/medications", headers=auth_headers, json={
-        "pet_id": pet_id, "name": "КурсСПродлением", "dosage": "1мг",
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "1мг",
         "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": today.isoformat(),
     })
     med_id = med_res.json()["id"]
@@ -289,8 +315,9 @@ async def test_cancel_medication_wrong_user_returns_403(client: AsyncClient) -> 
     h1 = {"Authorization": f"Bearer {r1.json()['access_token']}"}
     pet = await client.post("/api/v1/pets", headers=h1, json={"name": "Д", "species": "кот"})
     pet_id = pet.json()["id"]
+    drug_id = await _create_drug(client, h1, name="X", strength="1мг")
     med = await client.post("/api/v1/medications", headers=h1, json={
-        "pet_id": pet_id, "name": "X", "dosage": "1мг",
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "1мг",
         "frequency_per_day": 1, "start_date": date.today().isoformat(),
     })
     med_id = med.json()["id"]

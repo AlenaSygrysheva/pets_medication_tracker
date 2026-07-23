@@ -80,7 +80,7 @@ class TestMedicationSchemas(unittest.TestCase):
     def _payload(self) -> dict[str, object]:
         return {
             "pet_id": 1,
-            "name": "Амоксициллин",
+            "drug_id": 1,
             "dosage": "250mg",
             "frequency_per_day": 2,
             "start_date": date.today().isoformat(),

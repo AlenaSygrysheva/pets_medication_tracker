@@ -8,6 +8,7 @@ from app.core.exceptions import BadRequestError, ForbiddenError, NotFoundError
 from app.models.dose import Dose, DoseStatus
 from app.models.medication import Medication
 from app.repositories.dose_repo import DoseRepository
+from app.repositories.drug_repo import DrugRepository
 from app.repositories.medication_repo import MedicationRepository
 from app.repositories.pet_repo import PetRepository
 from app.schemas.medication import MedicationCreate, MedicationStatsResponse, MedicationUpdate
@@ -21,6 +22,12 @@ class MedicationService:
         self.repo = MedicationRepository(db)
         self.pet_repo = PetRepository(db)
         self.dose_repo = DoseRepository(db)
+        self.drug_repo = DrugRepository(db)
+
+    async def _validate_drug(self, drug_id: int, owner_id: int) -> None:
+        drug = await self.drug_repo.get_by_id(drug_id)
+        if not drug or drug.is_deleted or drug.owner_id != owner_id:
+            raise NotFoundError("Drug not found")
 
     async def get_medications(self, pet_id: int, owner_id: int, active_only: bool = False) -> list[Medication]:
         pet = await self.pet_repo.get_by_id(pet_id)
@@ -41,6 +48,7 @@ class MedicationService:
         pet = await self.pet_repo.get_by_id(data.pet_id)
         if not pet or pet.owner_id != owner_id:
             raise NotFoundError("Pet not found")
+        await self._validate_drug(data.drug_id, owner_id)
 
         if data.reminder_times is None:
             data = data.model_copy(update={"reminder_times": self._default_times(data.frequency_per_day)})
@@ -70,6 +78,8 @@ class MedicationService:
 
     async def update_medication(self, medication_id: int, owner_id: int, data: MedicationUpdate) -> Medication:
         med = await self.get_medication(medication_id, owner_id)
+        if data.drug_id is not None:
+            await self._validate_drug(data.drug_id, owner_id)
 
         new_frequency = data.frequency_per_day if data.frequency_per_day is not None else med.frequency_per_day
         new_times = data.reminder_times if data.reminder_times is not None else med.reminder_times
@@ -139,7 +149,7 @@ class MedicationService:
         cancelled_early = not med.is_active
         return MedicationStatsResponse(
             medication_id=med.id,
-            medication_name=med.name,
+            medication_name=f"{med.drug.name} {med.drug.strength}",
             pet_id=med.pet_id,
             start_date=med.start_date,
             end_date=med.end_date,

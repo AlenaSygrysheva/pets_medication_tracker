@@ -33,7 +33,7 @@ class DoseRepository:
                     Dose.scheduled_at <= end,
                 )
             )
-            .options(selectinload(Dose.medication))
+            .options(selectinload(Dose.medication).selectinload(Medication.drug))
             .order_by(Dose.scheduled_at)
         )
         return list(result.scalars().all())

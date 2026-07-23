@@ -47,7 +47,7 @@ class CalendarService:
             DoseSlot(
                 dose_id=d.id,
                 medication_id=d.medication_id,
-                medication_name=d.medication.name,
+                medication_name=f"{d.medication.drug.name} {d.medication.drug.strength}",
                 dosage=d.medication.dosage,
                 scheduled_at=d.scheduled_at,
                 status=d.status,

@@ -5,6 +5,26 @@ import pytest
 from httpx import AsyncClient
 
 
+async def _create_drug(
+    client: AsyncClient,
+    headers: dict[str, str],
+    name: str = "Антибиотик",
+    strength: str = "100мг",
+    purpose: str = "антибиотик",
+) -> int:
+    """Get-or-create: several tests reuse the same default name+strength under the
+    one shared test user, and duplicates are rejected by the catalog on purpose."""
+    res = await client.post("/api/v1/drugs", headers=headers, json={
+        "name": name, "purpose": purpose, "strength": strength,
+    })
+    if res.status_code == 409:
+        existing = await client.get("/api/v1/drugs", headers=headers)
+        match = next(d for d in existing.json() if d["name"] == name and d["strength"] == strength)
+        return int(match["id"])
+    id_: int = res.json()["id"]
+    return id_
+
+
 @pytest.mark.asyncio
 async def test_calendar_day_no_medications(
     client: AsyncClient, auth_headers: dict[str, str]
@@ -36,9 +56,10 @@ async def test_calendar_day_with_twice_daily_medication(
     pet_id = pet_res.json()["id"]
     today = date.today().isoformat()
     end = (date.today() + timedelta(days=1)).isoformat()
+    drug_id = await _create_drug(client, auth_headers, name="Антибиотик", strength="100мг")
 
     await client.post("/api/v1/medications", headers=auth_headers, json={
-        "pet_id": pet_id, "name": "Антибиотик", "dosage": "100мг",
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "100мг",
         "frequency_per_day": 2, "start_date": today, "end_date": end,
     })
 
@@ -63,9 +84,10 @@ async def test_calendar_dose_slots_have_required_fields(
     )
     pet_id = pet_res.json()["id"]
     today = date.today().isoformat()
+    drug_id = await _create_drug(client, auth_headers, name="Витамин", strength="50мг")
 
     await client.post("/api/v1/medications", headers=auth_headers, json={
-        "pet_id": pet_id, "name": "Витамин", "dosage": "50мг",
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "50мг",
         "frequency_per_day": 1, "start_date": today,
     })
 
@@ -76,6 +98,7 @@ async def test_calendar_dose_slots_have_required_fields(
     slot = slots[0]
     assert "dose_id" in slot
     assert "medication_name" in slot
+    assert slot["medication_name"] == "Витамин 50мг"
     assert "dosage" in slot
     assert "scheduled_at" in slot
     assert "status" in slot

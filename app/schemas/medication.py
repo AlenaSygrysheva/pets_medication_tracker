@@ -2,6 +2,8 @@ from datetime import date, time
 
 from pydantic import BaseModel, ValidationInfo, field_validator
 
+from app.schemas.drug import DrugResponse
+
 
 def _parse_reminder_times(v: list[str]) -> list[str]:
     if not v:
@@ -16,7 +18,7 @@ def _parse_reminder_times(v: list[str]) -> list[str]:
 
 
 class MedicationBase(BaseModel):
-    name: str
+    drug_id: int
     dosage: str
     frequency_per_day: int = 1
     reminder_times: list[str] | None = None
@@ -55,7 +57,7 @@ class MedicationCreate(MedicationBase):
 
 
 class MedicationUpdate(BaseModel):
-    name: str | None = None
+    drug_id: int | None = None
     dosage: str | None = None
     frequency_per_day: int | None = None
     reminder_times: list[str] | None = None
@@ -76,6 +78,7 @@ class MedicationResponse(MedicationBase):
     id: int
     pet_id: int
     is_active: bool
+    drug: DrugResponse
 
     model_config = {"from_attributes": True}
 

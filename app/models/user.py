@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from app.models.drug import Drug
     from app.models.pet import Pet
 
 from sqlalchemy import Boolean, DateTime, String, func
@@ -28,3 +29,4 @@ class User(Base):
     )
 
     pets: Mapped[list[Pet]] = relationship("Pet", back_populates="owner", cascade="all, delete-orphan")
+    drugs: Mapped[list[Drug]] = relationship("Drug", back_populates="owner", cascade="all, delete-orphan")

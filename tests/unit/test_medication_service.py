@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.dose import Dose, DoseStatus
+from app.models.drug import Drug
 from app.models.medication import Medication
 from app.models.pet import Pet
 from app.schemas.medication import MedicationCreate
@@ -18,6 +19,16 @@ def _make_pet(pet_id: int = 1, owner_id: int = 1) -> Pet:
     return p
 
 
+def _make_drug(drug_id: int = 1, owner_id: int = 5, is_deleted: bool = False) -> Drug:
+    d = MagicMock(spec=Drug)
+    d.id = drug_id
+    d.owner_id = owner_id
+    d.name = "ТестПрепарат"
+    d.strength = "10мг"
+    d.is_deleted = is_deleted
+    return d
+
+
 def _make_medication(
     med_id: int = 1,
     pet_id: int = 1,
@@ -27,7 +38,8 @@ def _make_medication(
     m = MagicMock(spec=Medication)
     m.id = med_id
     m.pet_id = pet_id
-    m.name = "TestMed"
+    m.drug_id = 1
+    m.drug = _make_drug()
     m.dosage = "10mg"
     m.frequency_per_day = frequency
     interval_hours = 24 // frequency
@@ -50,6 +62,8 @@ def _make_service() -> MedicationService:
     service.repo = AsyncMock()
     service.pet_repo = AsyncMock()
     service.dose_repo = AsyncMock()
+    service.drug_repo = AsyncMock()
+    service.drug_repo.get_by_id = AsyncMock(return_value=_make_drug())
     return service
 
 
@@ -86,7 +100,7 @@ class TestMedicationServiceCreate(unittest.IsolatedAsyncioTestCase):
     async def test_create_pet_not_found_raises(self, _cache: AsyncMock) -> None:
         self.service.pet_repo.get_by_id = AsyncMock(return_value=None)
         data = MedicationCreate(
-            pet_id=99, name="X", dosage="5mg",
+            pet_id=99, drug_id=1, dosage="5mg",
             frequency_per_day=1, start_date=date.today(),
         )
         with self.assertRaises(NotFoundError):
@@ -96,7 +110,7 @@ class TestMedicationServiceCreate(unittest.IsolatedAsyncioTestCase):
     async def test_create_wrong_owner_raises(self, _cache: AsyncMock) -> None:
         self.service.pet_repo.get_by_id = AsyncMock(return_value=_make_pet(owner_id=99))
         data = MedicationCreate(
-            pet_id=1, name="X", dosage="5mg",
+            pet_id=1, drug_id=1, dosage="5mg",
             frequency_per_day=1, start_date=date.today(),
         )
         with self.assertRaises(NotFoundError):
@@ -112,7 +126,7 @@ class TestMedicationServiceCreate(unittest.IsolatedAsyncioTestCase):
         self.service.dose_repo.create_bulk = AsyncMock()
 
         data = MedicationCreate(
-            pet_id=1, name="X", dosage="5mg", frequency_per_day=2,
+            pet_id=1, drug_id=1, dosage="5mg", frequency_per_day=2,
             start_date=date.today(),
             end_date=date.today() + timedelta(days=2),
         )
@@ -131,7 +145,7 @@ class TestMedicationServiceCreate(unittest.IsolatedAsyncioTestCase):
         self.service.dose_repo.create_bulk = AsyncMock()
 
         data = MedicationCreate(
-            pet_id=1, name="X", dosage="5mg", frequency_per_day=1,
+            pet_id=1, drug_id=1, dosage="5mg", frequency_per_day=1,
             start_date=date.today(),
             end_date=date.today() + timedelta(days=4),
         )
@@ -149,7 +163,7 @@ class TestMedicationServiceCreate(unittest.IsolatedAsyncioTestCase):
         self.service.dose_repo.create_bulk = AsyncMock()
 
         data = MedicationCreate(
-            pet_id=1, name="X", dosage="5mg", frequency_per_day=1,
+            pet_id=1, drug_id=1, dosage="5mg", frequency_per_day=1,
             start_date=date.today(),
             end_date=date.today() + timedelta(days=1),
         )
@@ -168,12 +182,45 @@ class TestMedicationServiceCreate(unittest.IsolatedAsyncioTestCase):
         self.service.dose_repo.create_bulk = AsyncMock()
 
         data = MedicationCreate(
-            pet_id=3, name="X", dosage="5mg", frequency_per_day=1,
+            pet_id=3, drug_id=1, dosage="5mg", frequency_per_day=1,
             start_date=date.today(),
         )
         await self.service.create_medication(owner_id=5, data=data)
 
         mock_cache.assert_awaited_once_with("calendar:3:*")
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_create_unknown_drug_raises(self, _cache: AsyncMock) -> None:
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=_make_pet(owner_id=5))
+        self.service.drug_repo.get_by_id = AsyncMock(return_value=None)
+        data = MedicationCreate(
+            pet_id=1, drug_id=999, dosage="5mg",
+            frequency_per_day=1, start_date=date.today(),
+        )
+        with self.assertRaises(NotFoundError):
+            await self.service.create_medication(owner_id=5, data=data)
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_create_other_owners_drug_raises(self, _cache: AsyncMock) -> None:
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=_make_pet(owner_id=5))
+        self.service.drug_repo.get_by_id = AsyncMock(return_value=_make_drug(owner_id=999))
+        data = MedicationCreate(
+            pet_id=1, drug_id=1, dosage="5mg",
+            frequency_per_day=1, start_date=date.today(),
+        )
+        with self.assertRaises(NotFoundError):
+            await self.service.create_medication(owner_id=5, data=data)
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_create_deleted_drug_raises(self, _cache: AsyncMock) -> None:
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=_make_pet(owner_id=5))
+        self.service.drug_repo.get_by_id = AsyncMock(return_value=_make_drug(is_deleted=True))
+        data = MedicationCreate(
+            pet_id=1, drug_id=1, dosage="5mg",
+            frequency_per_day=1, start_date=date.today(),
+        )
+        with self.assertRaises(NotFoundError):
+            await self.service.create_medication(owner_id=5, data=data)
 
 
 class TestMedicationServiceCancel(unittest.IsolatedAsyncioTestCase):
