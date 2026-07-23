@@ -30,6 +30,8 @@ def _make_medication(
     m.name = "TestMed"
     m.dosage = "10mg"
     m.frequency_per_day = frequency
+    interval_hours = 24 // frequency
+    m.reminder_times = [f"{min(8 + i * interval_hours, 23):02d}:00" for i in range(frequency)]
     m.start_date = date.today()
     m.end_date = date.today() + timedelta(days=days - 1)
     m.is_active = True
@@ -177,6 +179,8 @@ class TestMedicationServiceCreate(unittest.IsolatedAsyncioTestCase):
 class TestMedicationServiceCancel(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.service = _make_service()
+        self.service.dose_repo.delete_pending_after = AsyncMock(return_value=0)
+        self.service.dose_repo.cancel_pending_up_to = AsyncMock(return_value=0)
 
     @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
     async def test_cancel_sets_inactive(self, _cache: AsyncMock) -> None:
@@ -184,29 +188,113 @@ class TestMedicationServiceCancel(unittest.IsolatedAsyncioTestCase):
         med = _make_medication(med_id=3, pet_id=1)
         self.service.repo.get_by_id = AsyncMock(return_value=med)
         self.service.pet_repo.get_by_id = AsyncMock(return_value=pet)
-        self.service.dose_repo.cancel_pending_doses = AsyncMock(return_value=7)
 
         await self.service.cancel_medication(medication_id=3, owner_id=5)
 
         self.assertFalse(med.is_active)
 
     @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
-    async def test_cancel_calls_cancel_pending_doses(self, _cache: AsyncMock) -> None:
+    async def test_cancel_erases_future_doses_and_cancels_up_to_day(self, _cache: AsyncMock) -> None:
         pet = _make_pet(pet_id=1, owner_id=5)
         med = _make_medication(med_id=3, pet_id=1)
         self.service.repo.get_by_id = AsyncMock(return_value=med)
         self.service.pet_repo.get_by_id = AsyncMock(return_value=pet)
-        self.service.dose_repo.cancel_pending_doses = AsyncMock(return_value=3)
+        self.service.dose_repo.delete_pending_after = AsyncMock(return_value=4)
+        self.service.dose_repo.cancel_pending_up_to = AsyncMock(return_value=2)
+
+        cutoff = date(2026, 7, 25)
+        await self.service.cancel_medication(medication_id=3, owner_id=5, as_of=cutoff)
+
+        self.service.dose_repo.delete_pending_after.assert_awaited_once_with(3, cutoff)
+        self.service.dose_repo.cancel_pending_up_to.assert_awaited_once_with(3, cutoff)
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_cancel_defaults_as_of_to_today(self, _cache: AsyncMock) -> None:
+        pet = _make_pet(pet_id=1, owner_id=5)
+        med = _make_medication(med_id=3, pet_id=1)
+        self.service.repo.get_by_id = AsyncMock(return_value=med)
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=pet)
 
         await self.service.cancel_medication(medication_id=3, owner_id=5)
 
-        self.service.dose_repo.cancel_pending_doses.assert_awaited_once_with(3)
+        self.service.dose_repo.delete_pending_after.assert_awaited_once_with(3, date.today())
+        self.service.dose_repo.cancel_pending_up_to.assert_awaited_once_with(3, date.today())
 
     @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
     async def test_cancel_not_found_raises(self, _cache: AsyncMock) -> None:
         self.service.repo.get_by_id = AsyncMock(return_value=None)
         with self.assertRaises(NotFoundError):
             await self.service.cancel_medication(medication_id=999, owner_id=1)
+
+
+class TestMedicationServiceDelete(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.service = _make_service()
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_delete_soft_deletes_instead_of_hard_delete(self, _cache: AsyncMock) -> None:
+        pet = _make_pet(pet_id=1, owner_id=5)
+        med = _make_medication(med_id=3, pet_id=1)
+        self.service.repo.get_by_id = AsyncMock(return_value=med)
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=pet)
+        self.service.dose_repo.delete_pending_for_medication = AsyncMock()
+        self.service.repo.soft_delete = AsyncMock()
+
+        await self.service.delete_medication(medication_id=3, owner_id=5)
+
+        self.service.repo.soft_delete.assert_awaited_once_with(med)
+        self.service.dose_repo.delete_pending_for_medication.assert_awaited_once_with(3)
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_delete_not_found_raises(self, _cache: AsyncMock) -> None:
+        self.service.repo.get_by_id = AsyncMock(return_value=None)
+        with self.assertRaises(NotFoundError):
+            await self.service.delete_medication(medication_id=999, owner_id=1)
+
+
+class TestMedicationServiceStats(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.service = _make_service()
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_stats_counts_by_status(self, _cache: AsyncMock) -> None:
+        pet = _make_pet(pet_id=1, owner_id=5)
+        med = _make_medication(med_id=3, pet_id=1)
+        med.is_active = False
+        self.service.repo.get_by_id = AsyncMock(return_value=med)
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=pet)
+        self.service.dose_repo.get_status_counts = AsyncMock(
+            return_value={"taken": 3, "skipped": 1, "missed": 2, "cancelled": 4}
+        )
+
+        stats = await self.service.get_medication_stats(medication_id=3, owner_id=5)
+
+        self.assertEqual(stats.taken, 3)
+        self.assertEqual(stats.skipped, 1)
+        self.assertEqual(stats.missed, 2)
+        self.assertEqual(stats.cancelled, 4)
+        self.assertEqual(stats.total, 10)
+        self.assertEqual(stats.ended_reason, "cancelled")
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_stats_ended_reason_completed_when_still_active(self, _cache: AsyncMock) -> None:
+        pet = _make_pet(pet_id=1, owner_id=5)
+        med = _make_medication(med_id=3, pet_id=1)
+        med.is_active = True
+        self.service.repo.get_by_id = AsyncMock(return_value=med)
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=pet)
+        self.service.dose_repo.get_status_counts = AsyncMock(return_value={})
+
+        stats = await self.service.get_medication_stats(medication_id=3, owner_id=5)
+
+        self.assertEqual(stats.ended_reason, "completed")
+        self.assertEqual(stats.total, 0)
+
+    @patch("app.services.medication_service.cache_delete_pattern", new_callable=AsyncMock)
+    async def test_get_ended_medications_stats_pet_not_found_raises(self, _cache: AsyncMock) -> None:
+        self.service.pet_repo.get_by_id = AsyncMock(return_value=None)
+        with self.assertRaises(NotFoundError):
+            await self.service.get_ended_medications_stats(pet_id=99, owner_id=1)
 
 
 class TestDoseGenerationAlgorithm(unittest.TestCase):

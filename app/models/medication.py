@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from app.models.dose import Dose
     from app.models.pet import Pet
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -21,10 +21,12 @@ class Medication(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     dosage: Mapped[str] = mapped_column(String(100), nullable=False)
     frequency_per_day: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    reminder_times: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
