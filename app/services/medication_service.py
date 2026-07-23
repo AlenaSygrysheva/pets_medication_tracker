@@ -8,6 +8,7 @@ from app.core.exceptions import BadRequestError, ForbiddenError, NotFoundError
 from app.models.dose import Dose, DoseStatus
 from app.models.medication import Medication
 from app.repositories.dose_repo import DoseRepository
+from app.repositories.drug_repo import DrugRepository
 from app.repositories.medication_repo import MedicationRepository
 from app.repositories.pet_repo import PetRepository
 from app.schemas.medication import MedicationCreate, MedicationStatsResponse, MedicationUpdate
@@ -21,6 +22,12 @@ class MedicationService:
         self.repo = MedicationRepository(db)
         self.pet_repo = PetRepository(db)
         self.dose_repo = DoseRepository(db)
+        self.drug_repo = DrugRepository(db)
+
+    async def _validate_drug(self, drug_id: int, owner_id: int) -> None:
+        drug = await self.drug_repo.get_by_id(drug_id)
+        if not drug or drug.is_deleted or drug.owner_id != owner_id:
+            raise NotFoundError("Drug not found")
 
     async def get_medications(self, pet_id: int, owner_id: int, active_only: bool = False) -> list[Medication]:
         pet = await self.pet_repo.get_by_id(pet_id)
@@ -41,6 +48,7 @@ class MedicationService:
         pet = await self.pet_repo.get_by_id(data.pet_id)
         if not pet or pet.owner_id != owner_id:
             raise NotFoundError("Pet not found")
+        await self._validate_drug(data.drug_id, owner_id)
 
         if data.reminder_times is None:
             data = data.model_copy(update={"reminder_times": self._default_times(data.frequency_per_day)})
@@ -70,6 +78,8 @@ class MedicationService:
 
     async def update_medication(self, medication_id: int, owner_id: int, data: MedicationUpdate) -> Medication:
         med = await self.get_medication(medication_id, owner_id)
+        if data.drug_id is not None:
+            await self._validate_drug(data.drug_id, owner_id)
 
         new_frequency = data.frequency_per_day if data.frequency_per_day is not None else med.frequency_per_day
         new_times = data.reminder_times if data.reminder_times is not None else med.reminder_times
@@ -107,15 +117,39 @@ class MedicationService:
         pet = await self.pet_repo.get_by_id(pet_id)
         if not pet or pet.owner_id != owner_id:
             raise NotFoundError("Pet not found")
-        ended = await self.repo.get_ended_by_pet(pet_id, date.today())
+        ended = await self.repo.get_ended_by_pet(pet_id)
         return [await self._build_stats(med) for med in ended]
+
+    async def extend_after_unresolved_dose(self, medication: Medication) -> None:
+        """A missed/skipped dose doesn't shrink the course — it gets replaced by a
+        fresh pending dose further down the schedule, so the number of doses that
+        can still end up taken stays equal to what was originally planned. The only
+        way to actually stop this is cancelling the course (is_active=False)."""
+        if not medication.is_active:
+            return
+        last = await self.dose_repo.get_last_scheduled(medication.id)
+        after = last.scheduled_at if last else datetime.now(UTC)
+        next_slot = self._next_dose_slot(medication, after)
+        await self.dose_repo.create_bulk(
+            [Dose(medication_id=medication.id, scheduled_at=next_slot, status=DoseStatus.PENDING)]
+        )
+        await cache_delete_pattern(f"calendar:{medication.pet_id}:*")
+
+    @staticmethod
+    def _next_dose_slot(medication: Medication, after: datetime) -> datetime:
+        times = sorted(datetime.strptime(t, "%H:%M").time() for t in medication.reminder_times)
+        after_time = after.time()
+        for t in times:
+            if t > after_time:
+                return datetime.combine(after.date(), t, tzinfo=UTC)
+        return datetime.combine(after.date() + timedelta(days=1), times[0], tzinfo=UTC)
 
     async def _build_stats(self, med: Medication) -> MedicationStatsResponse:
         counts = await self.dose_repo.get_status_counts(med.id)
         cancelled_early = not med.is_active
         return MedicationStatsResponse(
             medication_id=med.id,
-            medication_name=med.name,
+            medication_name=f"{med.drug.name} {med.drug.strength}",
             pet_id=med.pet_id,
             start_date=med.start_date,
             end_date=med.end_date,

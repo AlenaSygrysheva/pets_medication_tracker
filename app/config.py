@@ -24,6 +24,16 @@ class Settings(BaseSettings):
 
     ALLOWED_ORIGINS: str = "http://localhost:8000"
 
+    # Password reset emails
+    FRONTEND_URL: str = "http://localhost:8000"
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "noreply@petmed.local"
+    SMTP_USE_TLS: bool = True
+
     @property
     def origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]

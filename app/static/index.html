@@ -39,10 +39,13 @@
 
     <!-- Login Form -->
     <form id="loginForm" onsubmit="doLogin(event)" class="space-y-4">
-      <input type="email" id="loginEmail" placeholder="Email" required
+      <input type="text" id="loginEmail" placeholder="Email" required
         class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
       <input type="password" id="loginPassword" placeholder="Пароль" required
         class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
+      <div class="text-right -mt-2">
+        <button type="button" onclick="openForgotPasswordModal()" class="text-xs text-blue-500 hover:underline">Забыли пароль?</button>
+      </div>
       <button type="submit"
         class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium transition-colors text-sm">
         Войти
@@ -64,6 +67,47 @@
     </form>
 
     <div id="authError" class="mt-3 text-red-500 text-xs text-center hidden"></div>
+  </div>
+</div>
+
+<!-- Forgot Password Modal -->
+<div id="forgotPasswordModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Восстановление пароля</h3>
+      <button onclick="closeModal('forgotPasswordModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <p class="text-sm text-gray-500">Укажите email, указанный при регистрации — мы отправим на него ссылку для смены пароля.</p>
+    <form onsubmit="submitForgotPassword(event)" class="space-y-3">
+      <input type="email" id="forgotPasswordEmail" placeholder="Email" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Отправить ссылку
+      </button>
+    </form>
+    <div id="forgotPasswordMessage" class="text-xs text-center hidden"></div>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div id="resetPasswordModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Новый пароль</h3>
+      <button onclick="closeResetPasswordModal()" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <form onsubmit="submitResetPassword(event)" class="space-y-3">
+      <input type="password" id="resetPasswordNew" placeholder="Новый пароль (мин. 8 символов)" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="password" id="resetPasswordConfirm" placeholder="Повторите пароль" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Сохранить новый пароль
+      </button>
+    </form>
+    <div id="resetPasswordMessage" class="text-xs text-center hidden"></div>
   </div>
 </div>
 
@@ -107,38 +151,56 @@
 
     <!-- ===== CALENDAR PAGE ===== -->
     <div id="page-calendar" class="page px-4 space-y-4">
-      <div class="flex items-center justify-between py-2">
-        <button onclick="changeDay(-1)" class="p-2 rounded-lg hover:bg-gray-100">◀</button>
-        <div class="text-center">
-          <div id="calendarDate" class="font-semibold text-gray-800"></div>
-          <div id="calendarPetName" class="text-xs text-gray-400"></div>
+
+      <!-- Month view: mini-calendar -->
+      <div id="calendarMonthView" class="space-y-4">
+        <div class="flex items-center justify-between py-2">
+          <button onclick="changeMonth(-1)" class="p-2 rounded-lg hover:bg-gray-100">◀</button>
+          <div id="calendarMonthLabel" class="font-semibold text-gray-800 capitalize"></div>
+          <button onclick="changeMonth(1)" class="p-2 rounded-lg hover:bg-gray-100">▶</button>
         </div>
-        <button onclick="changeDay(1)" class="p-2 rounded-lg hover:bg-gray-100">▶</button>
+        <div class="grid grid-cols-7 gap-1 text-center text-xs text-gray-400">
+          <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+        </div>
+        <div id="calendarMonthGrid" class="grid grid-cols-7 gap-1"></div>
       </div>
 
-      <!-- Pet selector -->
-      <div id="petSelectorCal" class="flex gap-2 overflow-x-auto pb-1 scrollbar-none"></div>
+      <!-- Day view: doses for the tapped date -->
+      <div id="calendarDayView" class="space-y-4 hidden">
+        <div class="flex items-center justify-between py-2">
+          <button onclick="changeDay(-1)" class="p-2 rounded-lg hover:bg-gray-100">◀</button>
+          <button onclick="backToMonthView()" class="text-center">
+            <div id="calendarDate" class="font-semibold text-gray-800"></div>
+            <div id="calendarTodayLabel" class="text-[10px] text-blue-500 font-semibold uppercase tracking-wide hidden">Сегодня</div>
+            <div id="calendarPetName" class="text-xs text-gray-400"></div>
+          </button>
+          <button onclick="changeDay(1)" class="p-2 rounded-lg hover:bg-gray-100">▶</button>
+        </div>
 
-      <!-- Stats -->
-      <div id="calendarStats" class="grid grid-cols-3 gap-2 hidden">
-        <div class="bg-green-50 rounded-xl p-3 text-center">
-          <div id="statTaken" class="text-2xl font-bold text-green-600">0</div>
-          <div class="text-xs text-green-700">Принято</div>
-        </div>
-        <div class="bg-yellow-50 rounded-xl p-3 text-center">
-          <div id="statPending" class="text-2xl font-bold text-yellow-600">0</div>
-          <div class="text-xs text-yellow-700">Ожидает</div>
-        </div>
-        <div class="bg-red-50 rounded-xl p-3 text-center">
-          <div id="statMissed" class="text-2xl font-bold text-red-600">0</div>
-          <div class="text-xs text-red-700">Пропущено</div>
-        </div>
-      </div>
+        <!-- Pet selector -->
+        <div id="petSelectorCal" class="flex gap-2 overflow-x-auto pb-1 scrollbar-none"></div>
 
-      <div id="dosesList" class="space-y-3"></div>
-      <div id="noDoses" class="text-center py-12 text-gray-400 hidden">
-        <div class="text-4xl mb-2">✅</div>
-        <div class="text-sm">Препаратов на этот день нет</div>
+        <!-- Stats -->
+        <div id="calendarStats" class="grid grid-cols-3 gap-2 hidden">
+          <div class="bg-green-50 rounded-xl p-3 text-center">
+            <div id="statTaken" class="text-2xl font-bold text-green-600">0</div>
+            <div class="text-xs text-green-700">Принято</div>
+          </div>
+          <div class="bg-yellow-50 rounded-xl p-3 text-center">
+            <div id="statPending" class="text-2xl font-bold text-yellow-600">0</div>
+            <div class="text-xs text-yellow-700">Ожидает</div>
+          </div>
+          <div class="bg-red-50 rounded-xl p-3 text-center">
+            <div id="statMissed" class="text-2xl font-bold text-red-600">0</div>
+            <div class="text-xs text-red-700">Пропущено</div>
+          </div>
+        </div>
+
+        <div id="dosesList" class="space-y-3"></div>
+        <div id="noDoses" class="text-center py-12 text-gray-400 hidden">
+          <div class="text-4xl mb-2">✅</div>
+          <div class="text-sm">Препаратов на этот день нет</div>
+        </div>
       </div>
     </div>
 
@@ -160,8 +222,12 @@
     <div id="page-medications" class="page px-4 space-y-4 hidden">
       <div class="flex items-center justify-between py-2">
         <h2 class="font-semibold text-gray-800">Препараты</h2>
-        <button onclick="openAddMedModal()"
-          class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium">+ Добавить</button>
+        <div class="flex gap-2">
+          <button onclick="openDrugCatalogModal()"
+            class="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium">📋 Каталог</button>
+          <button onclick="openAddMedModal()"
+            class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium">+ Курс</button>
+        </div>
       </div>
 
       <!-- Pet filter -->
@@ -250,14 +316,29 @@
         class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
         <option value="">Выберите питомца *</option>
       </select>
-      <input type="text" id="medName" placeholder="Название препарата *" required
+      <div>
+        <select id="medDrugId" required
+          class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="">Выберите препарат *</option>
+        </select>
+        <button type="button" onclick="openAddDrugModal(true)" class="text-xs text-blue-500 hover:underline mt-1">+ Новый препарат в каталог</button>
+      </div>
+      <input type="text" id="medDosage" placeholder="Дозировка за приём (напр. 1 таблетка) *" required
+        oninput="updateDosageCalculator()"
         class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-      <input type="text" id="medDosage" placeholder="Дозировка (напр. 5мг) *" required
-        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <div class="flex gap-4 -mt-1">
+        <label class="flex items-center gap-1.5 text-xs text-gray-600">
+          <input type="radio" name="medDosageForm" value="tablet" checked onchange="updateDosageCalculator()" /> Таблетка
+        </label>
+        <label class="flex items-center gap-1.5 text-xs text-gray-600">
+          <input type="radio" name="medDosageForm" value="liquid" onchange="updateDosageCalculator()" /> Жидкость
+        </label>
+      </div>
+      <div id="medDosageHint" class="text-xs text-blue-700 bg-blue-50 rounded-xl px-3 py-2 hidden"></div>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Частота в день *</label>
-          <select id="medFrequency" onchange="renderReminderTimeInputs()"
+          <select id="medFrequency" onchange="renderReminderTimeInputs(); updateDosageCalculator()"
             class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
             <option value="1">1 раз</option>
             <option value="2">2 раза</option>
@@ -268,7 +349,7 @@
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Дата начала *</label>
           <input type="text" id="medStartDate" required placeholder="дд/мм/гггг" maxlength="10"
-            oninput="autoDateSlash(this)"
+            oninput="autoDateSlash(this); updateDosageCalculator()"
             class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
         </div>
       </div>
@@ -279,7 +360,7 @@
       <div>
         <label class="text-xs text-gray-500 mb-1 block">Дата окончания (необязательно)</label>
         <input type="text" id="medEndDate" placeholder="дд/мм/гггг" maxlength="10"
-          oninput="autoDateSlash(this)"
+          oninput="autoDateSlash(this); updateDosageCalculator()"
           class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
       </div>
       <textarea id="medInstructions" placeholder="Инструкции (до/после еды и т.д.)" rows="2"
@@ -289,6 +370,48 @@
         Сохранить
       </button>
     </form>
+  </div>
+</div>
+
+<!-- Drug Catalog Modal -->
+<div id="drugCatalogModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Каталог препаратов</h3>
+      <button onclick="closeModal('drugCatalogModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <button onclick="openAddDrugModal(false)"
+      class="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium">+ Добавить препарат</button>
+    <div id="drugCatalogList" class="space-y-3"></div>
+    <div id="noDrugs" class="text-center py-10 text-gray-400 hidden">
+      <div class="text-4xl mb-2">📋</div>
+      <div class="text-sm">Каталог пуст</div>
+    </div>
+  </div>
+</div>
+
+<!-- Drug Modal (create/edit catalog entry) -->
+<div id="drugModal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 id="drugModalTitle" class="font-semibold text-gray-800">Добавить препарат</h3>
+      <button onclick="closeModal('drugModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <form onsubmit="saveDrug(event)" class="space-y-3">
+      <input type="hidden" id="drugId" />
+      <input type="hidden" id="drugFromMedModal" />
+      <input type="text" id="drugName" placeholder="Название *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="text" id="drugStrength" placeholder="Сколько в таблетке, мг или г (напр. 15 мг) *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <textarea id="drugPurpose" placeholder="Для чего *" rows="2" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Сохранить
+      </button>
+    </form>
+    <div id="drugModalError" class="text-xs text-center text-red-500 hidden"></div>
   </div>
 </div>
 
@@ -326,6 +449,7 @@ let currentUser = null;
 let pets = [];
 let selectedPetId = null;
 let calendarDate = new Date();
+let calendarMonthDate = new Date();
 let activeDoseId = null;
 let activeDoseMedId = null;
 let medsPetFilter = null;
@@ -343,10 +467,17 @@ function showAuthTab(tab) {
     : 'flex-1 py-2 rounded-lg text-sm font-medium transition-all text-gray-500';
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 async function doLogin(e) {
   e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  if (!EMAIL_RE.test(email)) {
+    showAuthError('Похоже, вы ввели имя пользователя. Для входа нужен email, указанный при регистрации.');
+    return;
+  }
   const res = await apiFetch('/auth/login', 'POST', {
-    email: document.getElementById('loginEmail').value,
+    email,
     password: document.getElementById('loginPassword').value,
   }, false);
   if (res.ok) {
@@ -354,7 +485,7 @@ async function doLogin(e) {
     storeTokens(data);
     await initApp();
   } else {
-    showAuthError((await res.json()).detail || 'Ошибка входа');
+    showAuthError((await extractErrorMessage(res)) || 'Ошибка входа');
   }
 }
 
@@ -370,9 +501,18 @@ async function doRegister(e) {
     storeTokens(data);
     await initApp();
   } else {
-    const err = await res.json();
-    showAuthError(err.detail || 'Ошибка регистрации');
+    showAuthError((await extractErrorMessage(res)) || 'Ошибка регистрации');
   }
+}
+
+// FastAPI validation errors come back as `detail: [{msg, loc, ...}, ...]`, not a string.
+async function extractErrorMessage(res) {
+  const err = await res.json().catch(() => null);
+  if (!err) return null;
+  if (Array.isArray(err.detail)) {
+    return err.detail.map(d => d.msg || String(d)).join('; ');
+  }
+  return err.detail || null;
 }
 
 function doLogout() {
@@ -396,6 +536,76 @@ function showAuthError(msg) {
   el.textContent = msg;
   el.classList.remove('hidden');
   setTimeout(() => el.classList.add('hidden'), 3000);
+}
+
+// ===== PASSWORD RESET =====
+function openForgotPasswordModal() {
+  const typed = document.getElementById('loginEmail').value.trim();
+  document.getElementById('forgotPasswordEmail').value = EMAIL_RE.test(typed) ? typed : '';
+  document.getElementById('forgotPasswordMessage').classList.add('hidden');
+  openModal('forgotPasswordModal');
+}
+
+async function submitForgotPassword(e) {
+  e.preventDefault();
+  const email = document.getElementById('forgotPasswordEmail').value.trim();
+  const res = await apiFetch('/auth/forgot-password', 'POST', { email }, false);
+  const msgEl = document.getElementById('forgotPasswordMessage');
+  if (res.ok) {
+    const data = await res.json();
+    msgEl.textContent = data.message || 'Если email зарегистрирован, письмо отправлено.';
+    msgEl.className = 'text-xs text-center text-green-600';
+  } else {
+    msgEl.textContent = (await extractErrorMessage(res)) || 'Не удалось отправить письмо';
+    msgEl.className = 'text-xs text-center text-red-500';
+  }
+  msgEl.classList.remove('hidden');
+}
+
+let resetPasswordToken = null;
+
+function openResetPasswordModal(tokenValue) {
+  resetPasswordToken = tokenValue;
+  document.getElementById('resetPasswordNew').value = '';
+  document.getElementById('resetPasswordConfirm').value = '';
+  document.getElementById('resetPasswordMessage').classList.add('hidden');
+  openModal('resetPasswordModal');
+}
+
+function closeResetPasswordModal() {
+  closeModal('resetPasswordModal');
+  resetPasswordToken = null;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('reset_token');
+  window.history.replaceState({}, '', url);
+}
+
+async function submitResetPassword(e) {
+  e.preventDefault();
+  const newPassword = document.getElementById('resetPasswordNew').value;
+  const confirmPassword = document.getElementById('resetPasswordConfirm').value;
+  const msgEl = document.getElementById('resetPasswordMessage');
+
+  if (newPassword !== confirmPassword) {
+    msgEl.textContent = 'Пароли не совпадают';
+    msgEl.className = 'text-xs text-center text-red-500';
+    msgEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/auth/reset-password', 'POST', {
+    token: resetPasswordToken,
+    new_password: newPassword,
+  }, false);
+
+  if (res.ok) {
+    closeResetPasswordModal();
+    showToast('Пароль изменён, теперь можно войти');
+  } else {
+    msgEl.textContent = (await extractErrorMessage(res)) || 'Ссылка недействительна или устарела';
+    msgEl.className = 'text-xs text-center text-red-500';
+    msgEl.classList.remove('hidden');
+  }
 }
 
 // ===== API =====
@@ -445,7 +655,7 @@ function showPage(name) {
   const nb = document.getElementById('nav-' + name);
   if (nb) nb.className = 'flex-1 py-3 flex flex-col items-center gap-1 text-xs text-blue-500 font-medium';
 
-  if (name === 'calendar') renderCalendar();
+  if (name === 'calendar') showCalendarMonthView();
   if (name === 'pets') renderPets();
   if (name === 'medications') renderMedications();
   if (name === 'stats') renderStats();
@@ -511,7 +721,7 @@ function renderPetSelectors() {
 function selectPet(petId, selectorId) {
   selectedPetId = petId;
   renderPetSelectors();
-  if (selectorId === 'petSelectorCal') renderCalendar();
+  if (selectorId === 'petSelectorCal') renderCalendarDayDetail();
   if (selectorId === 'petSelectorMed') renderMedications();
   if (selectorId === 'petSelectorStats') renderStats();
 }
@@ -635,9 +845,67 @@ function getReminderTimes() {
   return Array.from(document.querySelectorAll('#medReminderTimes input[type="time"]')).map(i => i.value);
 }
 
-function openAddMedModal() {
+// ===== DOSAGE CALCULATOR =====
+// Parses the leading number out of a free-text dosage like "1/7", "0.05 мл", "2 таблетки".
+function parseDosageAmount(str) {
+  if (!str) return null;
+  const trimmed = str.trim();
+  const fraction = trimmed.match(/^(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/);
+  if (fraction) {
+    const num = parseFloat(fraction[1].replace(',', '.'));
+    const den = parseFloat(fraction[2].replace(',', '.'));
+    return den ? num / den : null;
+  }
+  const plain = trimmed.match(/^(\d+(?:[.,]\d+)?)/);
+  return plain ? parseFloat(plain[1].replace(',', '.')) : null;
+}
+
+function courseDaysCount() {
+  const start = toApiDate(document.getElementById('medStartDate').value);
+  const end = toApiDate(document.getElementById('medEndDate').value);
+  if (!start || !end) return null;
+  const days = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
+  return days > 0 ? days : null;
+}
+
+function pluralizeRu(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+
+function formatAmount(n) {
+  return String(Math.round(n * 100) / 100);
+}
+
+function updateDosageCalculator() {
+  const hint = document.getElementById('medDosageHint');
+  const amount = parseDosageAmount(document.getElementById('medDosage').value);
+  const frequency = parseInt(document.getElementById('medFrequency').value) || 0;
+  const days = courseDaysCount();
+  const form = document.querySelector('input[name="medDosageForm"]:checked')?.value || 'tablet';
+
+  if (!amount || !frequency || !days) {
+    hint.classList.add('hidden');
+    return;
+  }
+
+  const total = amount * frequency * days;
+  const rounded = Math.round(total * 100) / 100;
+  const amountText = formatAmount(rounded);
+  const unitText = form === 'tablet'
+    ? `${amountText} ${Number.isInteger(rounded) ? pluralizeRu(rounded, 'таблетка', 'таблетки', 'таблеток') : 'таблетки'}`
+    : `${amountText} мл препарата`;
+
+  hint.textContent = `Кстати, на этот курс вам понадобится ${unitText}!`;
+  hint.classList.remove('hidden');
+}
+
+async function openAddMedModal() {
   document.getElementById('medId').value = '';
-  document.getElementById('medModalTitle').textContent = 'Добавить препарат';
+  document.getElementById('medModalTitle').textContent = 'Добавить курс';
   document.getElementById('medPetId').innerHTML = '<option value="">Выберите питомца *</option>';
   document.getElementById('medPetId').disabled = false;
   pets.forEach(p => {
@@ -647,22 +915,25 @@ function openAddMedModal() {
     if (p.id === selectedPetId) opt.selected = true;
     document.getElementById('medPetId').appendChild(opt);
   });
-  document.getElementById('medName').value = '';
+  await loadDrugs();
+  populateDrugSelect();
   document.getElementById('medDosage').value = '';
   document.getElementById('medFrequency').value = '1';
-  document.getElementById('medStartDate').value = fromApiDate(new Date().toISOString().split('T')[0]);
+  document.getElementById('medStartDate').value = fromApiDate(toLocalIsoDate(new Date()));
   document.getElementById('medStartDate').disabled = false;
   document.getElementById('medEndDate').value = '';
   document.getElementById('medInstructions').value = '';
+  document.querySelector('input[name="medDosageForm"][value="tablet"]').checked = true;
   renderReminderTimeInputs();
+  updateDosageCalculator();
   openModal('medModal');
 }
 
-function editMedication(id) {
+async function editMedication(id) {
   const med = currentMeds.find(m => m.id === id);
   if (!med) return;
   document.getElementById('medId').value = med.id;
-  document.getElementById('medModalTitle').textContent = 'Редактировать препарат';
+  document.getElementById('medModalTitle').textContent = 'Редактировать курс';
   document.getElementById('medPetId').innerHTML = '';
   const opt = document.createElement('option');
   opt.value = med.pet_id;
@@ -670,24 +941,28 @@ function editMedication(id) {
   opt.selected = true;
   document.getElementById('medPetId').appendChild(opt);
   document.getElementById('medPetId').disabled = true;
-  document.getElementById('medName').value = med.name;
+  await loadDrugs();
+  populateDrugSelect(med.drug_id);
   document.getElementById('medDosage').value = med.dosage;
   document.getElementById('medFrequency').value = med.frequency_per_day;
   document.getElementById('medStartDate').value = fromApiDate(med.start_date);
   document.getElementById('medStartDate').disabled = false;
   document.getElementById('medEndDate').value = med.end_date ? fromApiDate(med.end_date) : '';
   document.getElementById('medInstructions').value = med.instructions || '';
+  document.querySelector('input[name="medDosageForm"][value="tablet"]').checked = true;
   renderReminderTimeInputs(med.reminder_times);
+  updateDosageCalculator();
   openModal('medModal');
 }
 
 async function saveMedication(e) {
   e.preventDefault();
   const medId = document.getElementById('medId').value;
+  const drugId = parseInt(document.getElementById('medDrugId').value);
   let res;
   if (medId) {
     const body = {
-      name: document.getElementById('medName').value,
+      drug_id: drugId,
       dosage: document.getElementById('medDosage').value,
       frequency_per_day: parseInt(document.getElementById('medFrequency').value),
       reminder_times: getReminderTimes(),
@@ -699,7 +974,7 @@ async function saveMedication(e) {
   } else {
     const body = {
       pet_id: parseInt(document.getElementById('medPetId').value),
-      name: document.getElementById('medName').value,
+      drug_id: drugId,
       dosage: document.getElementById('medDosage').value,
       frequency_per_day: parseInt(document.getElementById('medFrequency').value),
       reminder_times: getReminderTimes(),
@@ -712,7 +987,7 @@ async function saveMedication(e) {
   if (res.ok) {
     closeModal('medModal');
     await renderMedications();
-    showToast(medId ? 'Препарат обновлён' : 'Препарат добавлен, расписание создано');
+    showToast(medId ? 'Курс обновлён' : 'Курс добавлен, расписание создано');
   } else {
     const err = await res.json();
     showToast(err.detail || 'Ошибка сохранения', true);
@@ -737,7 +1012,7 @@ async function renderMedications() {
         <div class="flex items-start justify-between">
           <div>
             <div class="flex items-center gap-2">
-              <span class="font-semibold text-gray-800">${esc(med.name)}</span>
+              <span class="font-semibold text-gray-800">${esc(med.drug.name)} ${esc(med.drug.strength)}</span>
               <span class="text-xs px-2 py-0.5 rounded-full ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${active ? 'Активен' : 'Завершён'}</span>
             </div>
             <div class="text-sm text-gray-600 mt-1">${esc(med.dosage)} · ${med.frequency_per_day}x/день · ${(med.reminder_times || []).join(', ')}</div>
@@ -755,9 +1030,129 @@ async function renderMedications() {
 }
 
 async function deleteMedication(id) {
-  if (!confirm('Удалить препарат? Он исчезнет из списка препаратов, но уже отмеченные приёмы останутся в календаре.')) return;
+  if (!confirm('Удалить курс? Он исчезнет из списка, но уже отмеченные приёмы останутся в календаре.')) return;
   const res = await apiFetch(`/medications/${id}`, 'DELETE');
-  if (res.ok) { await renderMedications(); showToast('Препарат удалён'); }
+  if (res.ok) { await renderMedications(); showToast('Курс удалён'); }
+}
+
+// ===== DRUG CATALOG =====
+let currentDrugs = [];
+
+async function loadDrugs() {
+  const res = await apiFetch('/drugs');
+  if (res.ok) currentDrugs = await res.json();
+}
+
+function populateDrugSelect(selectedDrugId) {
+  const select = document.getElementById('medDrugId');
+  select.innerHTML = '<option value="">Выберите препарат *</option>';
+  currentDrugs.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.id;
+    opt.textContent = `${d.name} ${d.strength}`;
+    if (d.id === selectedDrugId) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+async function openDrugCatalogModal() {
+  await loadDrugs();
+  renderDrugCatalog();
+  openModal('drugCatalogModal');
+}
+
+function renderDrugCatalog() {
+  const list = document.getElementById('drugCatalogList');
+  const empty = document.getElementById('noDrugs');
+  list.innerHTML = '';
+  if (!currentDrugs.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  currentDrugs.forEach(d => {
+    list.insertAdjacentHTML('beforeend', `
+      <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+        <div class="flex items-start justify-between">
+          <div class="min-w-0">
+            <div class="font-semibold text-gray-800">${esc(d.name)} ${esc(d.strength)}</div>
+            <div class="text-xs text-gray-500 mt-0.5">${esc(d.purpose)}</div>
+          </div>
+          <div class="flex gap-1 flex-shrink-0">
+            <button onclick="editDrug(${d.id})" class="text-blue-400 hover:text-blue-600 text-sm px-2">✏️</button>
+            <button onclick="deleteDrug(${d.id})" class="text-red-400 hover:text-red-600 text-sm px-2">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `);
+  });
+}
+
+function openAddDrugModal(fromMedModal) {
+  document.getElementById('drugId').value = '';
+  document.getElementById('drugFromMedModal').value = fromMedModal ? '1' : '';
+  document.getElementById('drugModalTitle').textContent = 'Добавить препарат';
+  document.getElementById('drugName').value = '';
+  document.getElementById('drugStrength').value = '';
+  document.getElementById('drugPurpose').value = '';
+  document.getElementById('drugModalError').classList.add('hidden');
+  openModal('drugModal');
+}
+
+function editDrug(id) {
+  const drug = currentDrugs.find(d => d.id === id);
+  if (!drug) return;
+  document.getElementById('drugId').value = drug.id;
+  document.getElementById('drugFromMedModal').value = '';
+  document.getElementById('drugModalTitle').textContent = 'Редактировать препарат';
+  document.getElementById('drugName').value = drug.name;
+  document.getElementById('drugStrength').value = drug.strength;
+  document.getElementById('drugPurpose').value = drug.purpose;
+  document.getElementById('drugModalError').classList.add('hidden');
+  openModal('drugModal');
+}
+
+async function saveDrug(e) {
+  e.preventDefault();
+  const drugId = document.getElementById('drugId').value;
+  const fromMedModal = document.getElementById('drugFromMedModal').value === '1';
+  const body = {
+    name: document.getElementById('drugName').value,
+    strength: document.getElementById('drugStrength').value,
+    purpose: document.getElementById('drugPurpose').value,
+  };
+  const res = drugId
+    ? await apiFetch(`/drugs/${drugId}`, 'PATCH', body)
+    : await apiFetch('/drugs', 'POST', body);
+
+  if (!res.ok) {
+    const err = await res.json();
+    const errEl = document.getElementById('drugModalError');
+    errEl.textContent = err.detail || 'Ошибка сохранения';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const saved = await res.json();
+  await loadDrugs();
+  closeModal('drugModal');
+
+  if (fromMedModal) {
+    populateDrugSelect(saved.id);
+  } else {
+    renderDrugCatalog();
+  }
+  showToast(drugId ? 'Препарат обновлён' : 'Препарат добавлен в каталог');
+}
+
+async function deleteDrug(id) {
+  if (!confirm('Удалить препарат из каталога?')) return;
+  const res = await apiFetch(`/drugs/${id}`, 'DELETE');
+  if (res.ok) {
+    await loadDrugs();
+    renderDrugCatalog();
+    showToast('Препарат удалён из каталога');
+  } else {
+    const err = await res.json();
+    showToast(err.detail || 'Не удалось удалить препарат', true);
+  }
 }
 
 // ===== STATS =====
@@ -802,15 +1197,79 @@ async function renderStats() {
   });
 }
 
-// ===== CALENDAR =====
-async function renderCalendar() {
+// ===== CALENDAR: MONTH VIEW =====
+function showCalendarMonthView() {
+  document.getElementById('calendarDayView').classList.add('hidden');
+  document.getElementById('calendarMonthView').classList.remove('hidden');
+  renderCalendarMonthView();
+}
+
+function changeMonth(delta) {
+  calendarMonthDate.setMonth(calendarMonthDate.getMonth() + delta);
+  renderCalendarMonthView();
+}
+
+async function renderCalendarMonthView() {
+  const year = calendarMonthDate.getFullYear();
+  const month = calendarMonthDate.getMonth() + 1;
+  document.getElementById('calendarMonthLabel').textContent =
+    calendarMonthDate.toLocaleDateString('ru', { month: 'long', year: 'numeric' });
+
+  const dayMap = {};
+  const res = await apiFetch(`/calendar/month/${year}/${month}`);
+  if (res.ok) {
+    const data = await res.json();
+    data.days.forEach(d => { dayMap[d.date] = d.pets; });
+  }
+
+  const grid = document.getElementById('calendarMonthGrid');
+  grid.innerHTML = '';
+
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === month;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const firstWeekday = (new Date(year, month - 1, 1).getDay() + 6) % 7; // Monday-first
+
+  for (let i = 0; i < firstWeekday; i++) {
+    grid.insertAdjacentHTML('beforeend', '<div></div>');
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const isToday = isCurrentMonth && d === today.getDate();
+    const pets = dayMap[dateStr] || [];
+    const initials = pets.map(p => esc(p.initial)).join(' ');
+    grid.insertAdjacentHTML('beforeend', `
+      <button onclick="openCalendarDay(${year}, ${month}, ${d})"
+        class="aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-sm transition-all ${isToday ? 'bg-sky-400 text-white font-bold shadow' : 'bg-white border border-gray-100 text-gray-700 hover:bg-gray-50'}">
+        <span>${d}</span>
+        ${initials ? `<span class="text-[10px] leading-none ${isToday ? 'text-white/90' : 'text-blue-500'}">${initials}</span>` : ''}
+      </button>
+    `);
+  }
+}
+
+function openCalendarDay(year, month, day) {
+  calendarDate = new Date(year, month - 1, day);
+  document.getElementById('calendarMonthView').classList.add('hidden');
+  document.getElementById('calendarDayView').classList.remove('hidden');
+  renderCalendarDayDetail();
+}
+
+function backToMonthView() {
+  calendarMonthDate = new Date(calendarDate);
+  showCalendarMonthView();
+}
+
+// ===== CALENDAR: DAY VIEW =====
+async function renderCalendarDayDetail() {
   if (!selectedPetId) {
     renderPetSelectors();
     return;
   }
   renderPetSelectors();
-  const dateStr = calendarDate.toISOString().split('T')[0];
+  const dateStr = toLocalIsoDate(calendarDate);
   document.getElementById('calendarDate').textContent = formatDate(calendarDate);
+  document.getElementById('calendarTodayLabel').classList.toggle('hidden', dateStr !== todayIsoDate());
 
   const res = await apiFetch(`/calendar/pet/${selectedPetId}/${dateStr}`);
   if (!res.ok) return;
@@ -857,14 +1316,14 @@ async function renderCalendar() {
 
 function changeDay(delta) {
   calendarDate.setDate(calendarDate.getDate() + delta);
-  renderCalendar();
+  renderCalendarDayDetail();
 }
 
 function openDoseModal(doseId, medicationId, medName, dosage, time) {
   activeDoseId = doseId;
   activeDoseMedId = medicationId;
   document.getElementById('doseModalInfo').innerHTML =
-    `<strong>${esc(medName)}</strong><br><span class="text-gray-500">${esc(dosage)} · ${time}</span>`;
+    `<strong>${esc(medName)}</strong><br><span class="text-gray-500">Дать ${esc(dosage)} · ${time}</span>`;
   document.getElementById('doseNotes').value = '';
   openModal('doseModal');
 }
@@ -875,7 +1334,7 @@ async function recordDose(status) {
   const res = await apiFetch(`/doses/${activeDoseId}`, 'PATCH', { status, notes });
   if (res.ok) {
     closeModal('doseModal');
-    await renderCalendar();
+    await renderCalendarDayDetail();
     showToast('Статус обновлён');
   } else {
     showToast('Ошибка обновления', true);
@@ -885,11 +1344,11 @@ async function recordDose(status) {
 async function cancelCourse() {
   if (!activeDoseMedId) return;
   if (!confirm('Отменить курс? Все приёмы после этого дня будут удалены из календаря.')) return;
-  const asOfDate = calendarDate.toISOString().split('T')[0];
+  const asOfDate = toLocalIsoDate(calendarDate);
   const res = await apiFetch(`/medications/${activeDoseMedId}/cancel?as_of_date=${asOfDate}`, 'POST');
   if (res.ok) {
     closeModal('doseModal');
-    await renderCalendar();
+    await renderCalendarDayDetail();
     showToast('Курс отменён');
   } else {
     showToast('Ошибка отмены курса', true);
@@ -897,6 +1356,20 @@ async function cancelCourse() {
 }
 
 // ===== UTILS =====
+// Builds YYYY-MM-DD from the LOCAL date, not UTC — Date#toISOString() converts to
+// UTC first, which shifts the date by a day for part of every 24h in any timezone
+// that isn't UTC itself (e.g. showing "today" as tomorrow or yesterday).
+function toLocalIsoDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function todayIsoDate() {
+  return toLocalIsoDate(new Date());
+}
+
 function esc(str) {
   if (!str) return '';
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -939,7 +1412,10 @@ function showToast(msg, error = false) {
 
 // ===== STARTUP =====
 (async () => {
-  if (token) {
+  const urlToken = new URL(window.location.href).searchParams.get('reset_token');
+  if (urlToken) {
+    openResetPasswordModal(urlToken);
+  } else if (token) {
     await initApp();
   }
 })();

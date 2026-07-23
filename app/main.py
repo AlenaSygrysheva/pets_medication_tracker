@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1 import auth, calendar, doses, medications, pets
+from app.api.v1 import auth, calendar, doses, drugs, medications, pets
 from app.config import settings
 from app.core.cache import close_redis
 from app.database import engine
@@ -65,6 +65,7 @@ async def log_requests(
 API_PREFIX = "/api/v1"
 app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(pets.router, prefix=API_PREFIX)
+app.include_router(drugs.router, prefix=API_PREFIX)
 app.include_router(medications.router, prefix=API_PREFIX)
 app.include_router(calendar.router, prefix=API_PREFIX)
 app.include_router(doses.router, prefix=API_PREFIX)
