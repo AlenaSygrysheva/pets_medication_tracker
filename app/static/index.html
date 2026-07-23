@@ -11,6 +11,7 @@
     .status-pending  { @apply bg-yellow-100 text-yellow-800 border-yellow-300; }
     .status-missed   { @apply bg-red-100 text-red-800 border-red-300; }
     .status-skipped  { @apply bg-gray-100 text-gray-600 border-gray-300; }
+    .status-cancelled { @apply bg-gray-100 text-gray-500 border-gray-300; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen font-sans">
@@ -95,6 +96,10 @@
       class="flex-1 py-3 flex flex-col items-center gap-1 text-xs text-gray-400">
       <span class="text-xl">💊</span>Препараты
     </button>
+    <button onclick="showPage('stats')" id="nav-stats"
+      class="flex-1 py-3 flex flex-col items-center gap-1 text-xs text-gray-400">
+      <span class="text-xl">📊</span>Статистика
+    </button>
   </nav>
 
   <!-- Main Content -->
@@ -169,6 +174,22 @@
       </div>
     </div>
 
+    <!-- ===== STATS PAGE ===== -->
+    <div id="page-stats" class="page px-4 space-y-4 hidden">
+      <div class="flex items-center justify-between py-2">
+        <h2 class="font-semibold text-gray-800">Статистика приёма</h2>
+      </div>
+
+      <!-- Pet filter -->
+      <div id="petSelectorStats" class="flex gap-2 overflow-x-auto pb-1"></div>
+
+      <div id="statsList" class="space-y-3"></div>
+      <div id="noStats" class="text-center py-12 text-gray-400 hidden">
+        <div class="text-4xl mb-2">📊</div>
+        <div class="text-sm">Завершённых курсов пока нет</div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -236,7 +257,7 @@
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-xs text-gray-500 mb-1 block">Частота в день *</label>
-          <select id="medFrequency"
+          <select id="medFrequency" onchange="renderReminderTimeInputs()"
             class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
             <option value="1">1 раз</option>
             <option value="2">2 раза</option>
@@ -250,6 +271,10 @@
             oninput="autoDateSlash(this)"
             class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
         </div>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Время напоминаний *</label>
+        <div id="medReminderTimes" class="grid grid-cols-2 gap-2"></div>
       </div>
       <div>
         <label class="text-xs text-gray-500 mb-1 block">Дата окончания (необязательно)</label>
@@ -285,6 +310,8 @@
     </div>
     <textarea id="doseNotes" placeholder="Заметка (необязательно)" rows="2"
       class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+    <button onclick="cancelCourse()"
+      class="w-full py-3 bg-white border border-red-300 hover:bg-red-50 text-red-600 rounded-xl text-sm font-medium">🛑 Отменить курс</button>
   </div>
 </div>
 
@@ -300,6 +327,7 @@ let pets = [];
 let selectedPetId = null;
 let calendarDate = new Date();
 let activeDoseId = null;
+let activeDoseMedId = null;
 let medsPetFilter = null;
 let currentMeds = [];
 
@@ -420,6 +448,7 @@ function showPage(name) {
   if (name === 'calendar') renderCalendar();
   if (name === 'pets') renderPets();
   if (name === 'medications') renderMedications();
+  if (name === 'stats') renderStats();
 }
 
 // ===== PETS =====
@@ -464,7 +493,7 @@ function renderPets() {
 }
 
 function renderPetSelectors() {
-  ['petSelectorCal', 'petSelectorMed'].forEach(id => {
+  ['petSelectorCal', 'petSelectorMed', 'petSelectorStats'].forEach(id => {
     const el = document.getElementById(id);
     el.innerHTML = '';
     pets.forEach(pet => {
@@ -484,6 +513,7 @@ function selectPet(petId, selectorId) {
   renderPetSelectors();
   if (selectorId === 'petSelectorCal') renderCalendar();
   if (selectorId === 'petSelectorMed') renderMedications();
+  if (selectorId === 'petSelectorStats') renderStats();
 }
 
 function previewAvatar(input) {
@@ -576,6 +606,35 @@ async function deletePet(id) {
 }
 
 // ===== MEDICATIONS =====
+function defaultReminderTimes(frequency) {
+  const interval = Math.floor(24 / frequency);
+  return Array.from({ length: frequency }, (_, i) => {
+    const hour = Math.min(8 + i * interval, 23);
+    return String(hour).padStart(2, '0') + ':00';
+  });
+}
+
+function renderReminderTimeInputs(times) {
+  const frequency = parseInt(document.getElementById('medFrequency').value);
+  const container = document.getElementById('medReminderTimes');
+  const existing = Array.from(container.querySelectorAll('input[type="time"]')).map(i => i.value);
+  const values = times || existing;
+  const defaults = defaultReminderTimes(frequency);
+  container.innerHTML = '';
+  for (let i = 0; i < frequency; i++) {
+    const input = document.createElement('input');
+    input.type = 'time';
+    input.required = true;
+    input.value = values[i] || defaults[i];
+    input.className = 'w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400';
+    container.appendChild(input);
+  }
+}
+
+function getReminderTimes() {
+  return Array.from(document.querySelectorAll('#medReminderTimes input[type="time"]')).map(i => i.value);
+}
+
 function openAddMedModal() {
   document.getElementById('medId').value = '';
   document.getElementById('medModalTitle').textContent = 'Добавить препарат';
@@ -595,6 +654,7 @@ function openAddMedModal() {
   document.getElementById('medStartDate').disabled = false;
   document.getElementById('medEndDate').value = '';
   document.getElementById('medInstructions').value = '';
+  renderReminderTimeInputs();
   openModal('medModal');
 }
 
@@ -617,6 +677,7 @@ function editMedication(id) {
   document.getElementById('medStartDate').disabled = false;
   document.getElementById('medEndDate').value = med.end_date ? fromApiDate(med.end_date) : '';
   document.getElementById('medInstructions').value = med.instructions || '';
+  renderReminderTimeInputs(med.reminder_times);
   openModal('medModal');
 }
 
@@ -629,6 +690,7 @@ async function saveMedication(e) {
       name: document.getElementById('medName').value,
       dosage: document.getElementById('medDosage').value,
       frequency_per_day: parseInt(document.getElementById('medFrequency').value),
+      reminder_times: getReminderTimes(),
       start_date: toApiDate(document.getElementById('medStartDate').value),
       end_date: toApiDate(document.getElementById('medEndDate').value),
       instructions: document.getElementById('medInstructions').value || null,
@@ -640,6 +702,7 @@ async function saveMedication(e) {
       name: document.getElementById('medName').value,
       dosage: document.getElementById('medDosage').value,
       frequency_per_day: parseInt(document.getElementById('medFrequency').value),
+      reminder_times: getReminderTimes(),
       start_date: toApiDate(document.getElementById('medStartDate').value),
       end_date: toApiDate(document.getElementById('medEndDate').value),
       instructions: document.getElementById('medInstructions').value || null,
@@ -677,7 +740,7 @@ async function renderMedications() {
               <span class="font-semibold text-gray-800">${esc(med.name)}</span>
               <span class="text-xs px-2 py-0.5 rounded-full ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${active ? 'Активен' : 'Завершён'}</span>
             </div>
-            <div class="text-sm text-gray-600 mt-1">${esc(med.dosage)} · ${med.frequency_per_day}x/день</div>
+            <div class="text-sm text-gray-600 mt-1">${esc(med.dosage)} · ${med.frequency_per_day}x/день · ${(med.reminder_times || []).join(', ')}</div>
             <div class="text-xs text-gray-400 mt-1">${fromApiDate(med.start_date)}${med.end_date ? ' → ' + fromApiDate(med.end_date) : ' → ∞'}</div>
             ${med.instructions ? `<div class="text-xs text-blue-600 mt-1">ℹ️ ${esc(med.instructions)}</div>` : ''}
           </div>
@@ -692,9 +755,51 @@ async function renderMedications() {
 }
 
 async function deleteMedication(id) {
-  if (!confirm('Удалить препарат и все его дозы?')) return;
+  if (!confirm('Удалить препарат? Он исчезнет из списка препаратов, но уже отмеченные приёмы останутся в календаре.')) return;
   const res = await apiFetch(`/medications/${id}`, 'DELETE');
   if (res.ok) { await renderMedications(); showToast('Препарат удалён'); }
+}
+
+// ===== STATS =====
+async function renderStats() {
+  if (!selectedPetId) return;
+  renderPetSelectors();
+  const list = document.getElementById('statsList');
+  const empty = document.getElementById('noStats');
+  list.innerHTML = '';
+
+  const res = await apiFetch(`/medications/pet/${selectedPetId}/stats`);
+  if (!res.ok) return;
+  const stats = await res.json();
+  if (!stats.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  stats.forEach(s => {
+    const reasonLabel = s.ended_reason === 'cancelled' ? '🛑 Курс отменён' : '✅ Курс завершён';
+    list.insertAdjacentHTML('beforeend', `
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-gray-800">${esc(s.medication_name)}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">${reasonLabel}</span>
+        </div>
+        <div class="text-xs text-gray-400 mt-1">${fromApiDate(s.start_date)}${s.end_date ? ' → ' + fromApiDate(s.end_date) : ''}</div>
+        <div class="grid grid-cols-3 gap-2 mt-3">
+          <div class="bg-green-50 rounded-xl p-2 text-center">
+            <div class="text-lg font-bold text-green-600">${s.taken}</div>
+            <div class="text-xs text-green-700">Принято</div>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-2 text-center">
+            <div class="text-lg font-bold text-gray-600">${s.skipped}</div>
+            <div class="text-xs text-gray-500">Пропущено</div>
+          </div>
+          <div class="bg-red-50 rounded-xl p-2 text-center">
+            <div class="text-lg font-bold text-red-600">${s.missed}</div>
+            <div class="text-xs text-red-700">Не принято</div>
+          </div>
+        </div>
+      </div>
+    `);
+  });
 }
 
 // ===== CALENDAR =====
@@ -732,11 +837,11 @@ async function renderCalendar() {
 
   data.doses.forEach(dose => {
     const time = new Date(dose.scheduled_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
-    const statusLabels = { taken: '✅ Принято', pending: '⏳ Ожидает', missed: '❌ Пропущено', skipped: '⏭ Пропущено' };
-    const statusClasses = { taken: 'bg-green-50 border-green-200', pending: 'bg-yellow-50 border-yellow-200', missed: 'bg-red-50 border-red-200', skipped: 'bg-gray-50 border-gray-200' };
+    const statusLabels = { taken: '✅ Принято', pending: '⏳ Ожидает', missed: '❌ Пропущено', skipped: '⏭ Пропущено', cancelled: '🛑 Курс отменён' };
+    const statusClasses = { taken: 'bg-green-50 border-green-200', pending: 'bg-yellow-50 border-yellow-200', missed: 'bg-red-50 border-red-200', skipped: 'bg-gray-50 border-gray-200', cancelled: 'bg-gray-50 border-gray-200' };
     list.insertAdjacentHTML('beforeend', `
       <div class="rounded-2xl p-4 border ${statusClasses[dose.status] || 'bg-white border-gray-100'} cursor-pointer"
-           onclick="openDoseModal(${dose.dose_id}, '${esc(dose.medication_name)}', '${esc(dose.dosage)}', '${time}')">
+           onclick="openDoseModal(${dose.dose_id}, ${dose.medication_id}, '${esc(dose.medication_name)}', '${esc(dose.dosage)}', '${time}')">
         <div class="flex items-center justify-between">
           <div>
             <div class="font-medium text-gray-800">${esc(dose.medication_name)}</div>
@@ -755,8 +860,9 @@ function changeDay(delta) {
   renderCalendar();
 }
 
-function openDoseModal(doseId, medName, dosage, time) {
+function openDoseModal(doseId, medicationId, medName, dosage, time) {
   activeDoseId = doseId;
+  activeDoseMedId = medicationId;
   document.getElementById('doseModalInfo').innerHTML =
     `<strong>${esc(medName)}</strong><br><span class="text-gray-500">${esc(dosage)} · ${time}</span>`;
   document.getElementById('doseNotes').value = '';
@@ -773,6 +879,20 @@ async function recordDose(status) {
     showToast('Статус обновлён');
   } else {
     showToast('Ошибка обновления', true);
+  }
+}
+
+async function cancelCourse() {
+  if (!activeDoseMedId) return;
+  if (!confirm('Отменить курс? Все приёмы после этого дня будут удалены из календаря.')) return;
+  const asOfDate = calendarDate.toISOString().split('T')[0];
+  const res = await apiFetch(`/medications/${activeDoseMedId}/cancel?as_of_date=${asOfDate}`, 'POST');
+  if (res.ok) {
+    closeModal('doseModal');
+    await renderCalendar();
+    showToast('Курс отменён');
+  } else {
+    showToast('Ошибка отмены курса', true);
   }
 }
 

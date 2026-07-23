@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,7 +7,12 @@ from app.api.dependencies import get_current_user
 from app.database import get_db
 from app.models.medication import Medication
 from app.models.user import User
-from app.schemas.medication import MedicationCreate, MedicationResponse, MedicationUpdate
+from app.schemas.medication import (
+    MedicationCreate,
+    MedicationResponse,
+    MedicationStatsResponse,
+    MedicationUpdate,
+)
 from app.services.medication_service import MedicationService
 
 router = APIRouter(prefix="/medications", tags=["medications"])
@@ -19,6 +26,16 @@ async def list_medications(
     db: AsyncSession = Depends(get_db),
 ) -> list[Medication]:
     return await MedicationService(db).get_medications(pet_id, current_user.id, active_only)
+
+
+@router.get("/pet/{pet_id}/stats", response_model=list[MedicationStatsResponse])
+async def list_ended_medication_stats(
+    pet_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MedicationStatsResponse]:
+    """Сводка по завершённым курсам (отменённым или закончившимся по дате)."""
+    return await MedicationService(db).get_ended_medications_stats(pet_id, current_user.id)
 
 
 @router.post("", response_model=MedicationResponse, status_code=201)
@@ -52,11 +69,13 @@ async def update_medication(
 @router.post("/{medication_id}/cancel", response_model=MedicationResponse)
 async def cancel_medication(
     medication_id: int,
+    as_of_date: date | None = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Medication:
-    """Отменить курс лечения — все pending дозы переходят в cancelled."""
-    return await MedicationService(db).cancel_medication(medication_id, current_user.id)
+    """Отменить курс лечения на дату as_of_date (по умолчанию — сегодня):
+    дозы после этой даты стираются, дозы до неё и в этот день помечаются cancelled."""
+    return await MedicationService(db).cancel_medication(medication_id, current_user.id, as_of_date)
 
 
 @router.delete("/{medication_id}", status_code=204)

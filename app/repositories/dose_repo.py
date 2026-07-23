@@ -1,6 +1,6 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime, time
 
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -65,15 +65,48 @@ class DoseRepository:
         )
         await self.db.flush()
 
-    async def cancel_pending_doses(self, medication_id: int) -> int:
+    async def cancel_pending_up_to(self, medication_id: int, as_of: date) -> int:
+        """Mark pending doses scheduled on or before `as_of` as cancelled (kept for history)."""
+        cutoff = datetime.combine(as_of, time.max, tzinfo=UTC)
         result = await self.db.execute(
             sa_update(Dose)
-            .where(and_(Dose.medication_id == medication_id, Dose.status == DoseStatus.PENDING))
+            .where(
+                and_(
+                    Dose.medication_id == medication_id,
+                    Dose.status == DoseStatus.PENDING,
+                    Dose.scheduled_at <= cutoff,
+                )
+            )
             .values(status=DoseStatus.CANCELLED)
             .returning(Dose.id)
         )
         await self.db.flush()
         return len(result.fetchall())
+
+    async def delete_pending_after(self, medication_id: int, as_of: date) -> int:
+        """Erase pending doses scheduled strictly after `as_of` — they will never happen."""
+        cutoff = datetime.combine(as_of, time.max, tzinfo=UTC)
+        result = await self.db.execute(
+            delete(Dose)
+            .where(
+                and_(
+                    Dose.medication_id == medication_id,
+                    Dose.status == DoseStatus.PENDING,
+                    Dose.scheduled_at > cutoff,
+                )
+            )
+            .returning(Dose.id)
+        )
+        await self.db.flush()
+        return len(result.fetchall())
+
+    async def get_status_counts(self, medication_id: int) -> dict[str, int]:
+        result = await self.db.execute(
+            select(Dose.status, func.count(Dose.id))
+            .where(Dose.medication_id == medication_id)
+            .group_by(Dose.status)
+        )
+        return {status.value: count for status, count in result.all()}
 
     async def get_overdue_pending(self, before: datetime) -> list[Dose]:
         result = await self.db.execute(
