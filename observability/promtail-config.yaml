@@ -1,0 +1,34 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        # Filter server-side (via the Docker API) so Promtail only ever discovers
+        # the app container — never Loki/Grafana/Promtail's own containers. Relying
+        # on a relabel `keep` step here was unreliable and caused Promtail to ship
+        # Loki's own non-JSON logs back into Loki, tripping "at least one label
+        # pair is required per stream" in an infinite self-referential loop.
+        filters:
+          - name: label
+            values: ["com.docker.compose.service=app"]
+    relabel_configs:
+      - target_label: "compose_service"
+        replacement: "app"
+    pipeline_stages:
+      # App logs are already single-line JSON (see app/core/logging.py); pull the
+      # `level` field out so it becomes a Loki label we can filter/alert on.
+      - json:
+          expressions:
+            level: level
+      - labels:
+          level:

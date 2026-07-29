@@ -92,3 +92,25 @@ async def auth_headers(client: AsyncClient) -> dict[str, str]:
     )
     token: str = res.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def admin_headers(client: AsyncClient) -> dict[str, str]:
+    """Auth headers for a user whose email matches settings.ADMIN_EMAIL."""
+    from app.config import settings
+
+    with patch.object(settings, "ADMIN_EMAIL", "admin@example.com"):
+        await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "admin@example.com",
+                "username": "adminuser",
+                "password": "password123",
+            },
+        )
+        res = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@example.com", "password": "password123"},
+        )
+        token: str = res.json()["access_token"]
+        yield {"Authorization": f"Bearer {token}"}

@@ -38,6 +38,17 @@ async def list_ended_medication_stats(
     return await MedicationService(db).get_ended_medications_stats(pet_id, current_user.id)
 
 
+@router.get("/pet/{pet_id}/stats/active", response_model=list[MedicationStatsResponse])
+async def list_active_medication_stats(
+    pet_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MedicationStatsResponse]:
+    """Живая сводка по курсам, которые ещё идут: сколько доз уже принято/пропущено/не
+    принято и сколько ещё осталось."""
+    return await MedicationService(db).get_active_medications_stats(pet_id, current_user.id)
+
+
 @router.post("", response_model=MedicationResponse, status_code=201)
 async def create_medication(
     data: MedicationCreate,

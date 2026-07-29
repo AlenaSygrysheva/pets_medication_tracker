@@ -8,16 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1 import auth, calendar, doses, drugs, medications, pets
+from app.api.v1 import auth, bug_reports, calendar, doses, drugs, medications, pets
 from app.config import settings
 from app.core.cache import close_redis
+from app.core.logging import setup_logging
 from app.database import engine
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+setup_logging()
 logger = logging.getLogger("api")
 
 
@@ -59,6 +57,12 @@ async def log_requests(
         request.url.path,
         response.status_code,
         duration_ms,
+        extra={
+            "http_method": request.method,
+            "http_path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": round(duration_ms, 1),
+        },
     )
     return response
 
@@ -69,6 +73,7 @@ app.include_router(drugs.router, prefix=API_PREFIX)
 app.include_router(medications.router, prefix=API_PREFIX)
 app.include_router(calendar.router, prefix=API_PREFIX)
 app.include_router(doses.router, prefix=API_PREFIX)
+app.include_router(bug_reports.router, prefix=API_PREFIX)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 

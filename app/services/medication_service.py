@@ -120,6 +120,15 @@ class MedicationService:
         ended = await self.repo.get_ended_by_pet(pet_id)
         return [await self._build_stats(med) for med in ended]
 
+    async def get_active_medications_stats(
+        self, pet_id: int, owner_id: int
+    ) -> list[MedicationStatsResponse]:
+        pet = await self.pet_repo.get_by_id(pet_id)
+        if not pet or pet.owner_id != owner_id:
+            raise NotFoundError("Pet not found")
+        active = await self.repo.get_active_by_pet(pet_id)
+        return [await self._build_stats(med) for med in active]
+
     async def extend_after_unresolved_dose(self, medication: Medication) -> None:
         """A missed/skipped dose doesn't shrink the course — it gets replaced by a
         fresh pending dose further down the schedule, so the number of doses that
@@ -146,18 +155,25 @@ class MedicationService:
 
     async def _build_stats(self, med: Medication) -> MedicationStatsResponse:
         counts = await self.dose_repo.get_status_counts(med.id)
-        cancelled_early = not med.is_active
+        pending = counts.get(DoseStatus.PENDING.value, 0)
+        if not med.is_active:
+            status = "cancelled"
+        elif pending > 0:
+            status = "active"
+        else:
+            status = "completed"
         return MedicationStatsResponse(
             medication_id=med.id,
             medication_name=f"{med.drug.name} {med.drug.strength}",
             pet_id=med.pet_id,
             start_date=med.start_date,
             end_date=med.end_date,
-            ended_reason="cancelled" if cancelled_early else "completed",
+            status=status,
             taken=counts.get(DoseStatus.TAKEN.value, 0),
             skipped=counts.get(DoseStatus.SKIPPED.value, 0),
             missed=counts.get(DoseStatus.MISSED.value, 0),
             cancelled=counts.get(DoseStatus.CANCELLED.value, 0),
+            pending=pending,
             total=sum(counts.values()),
         )
 

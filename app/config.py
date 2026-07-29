@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = "noreply@petmed.local"
     SMTP_USE_TLS: bool = True
 
+    # Bug reports admin access
+    ADMIN_EMAIL: str = ""
+
     @property
     def origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
