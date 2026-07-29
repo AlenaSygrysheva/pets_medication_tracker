@@ -302,7 +302,7 @@ async def test_stats_reflect_course_still_pending_after_miss_then_completes(
     stats_res2 = await client.get(f"/api/v1/medications/pet/{pet_id}/stats", headers=auth_headers)
     entries = [s for s in stats_res2.json() if s["medication_id"] == med_id]
     assert len(entries) == 1
-    assert entries[0]["ended_reason"] == "completed"
+    assert entries[0]["status"] == "completed"
     assert entries[0]["taken"] == 1
     assert entries[0]["missed"] == 1
 

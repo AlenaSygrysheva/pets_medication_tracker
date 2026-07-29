@@ -89,9 +89,10 @@ class MedicationStatsResponse(BaseModel):
     pet_id: int
     start_date: date
     end_date: date | None
-    ended_reason: str
+    status: str  # "active" | "completed" | "cancelled"
     taken: int
     skipped: int
     missed: int
     cancelled: int
+    pending: int
     total: int

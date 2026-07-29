@@ -111,6 +111,26 @@
   </div>
 </div>
 
+<!-- Bug Report Modal -->
+<div id="bugReportModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Сообщить об ошибке</h3>
+      <button onclick="closeModal('bugReportModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <p class="text-sm text-gray-500">Опишите, что пошло не так — мы получим ваше сообщение и обязательно исправим это!</p>
+    <form onsubmit="submitBugReport(event)" class="space-y-3">
+      <textarea id="bugReportMessage" required rows="4" placeholder="Опишите проблему..."
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Отправить
+      </button>
+    </form>
+    <div id="bugReportMessageStatus" class="text-xs text-center hidden"></div>
+  </div>
+</div>
+
 <!-- ===== MAIN APP ===== -->
 <div id="appScreen" class="hidden flex flex-col min-h-screen max-w-md mx-auto">
 
@@ -122,6 +142,8 @@
     </div>
     <div class="flex items-center gap-3">
       <span id="headerUsername" class="text-sm text-gray-500"></span>
+      <button onclick="openModal('bugReportModal')" title="Сообщить об ошибке"
+        class="text-gray-400 hover:text-orange-500 transition-colors">🐞</button>
       <button onclick="doLogout()" class="text-xs text-gray-400 hover:text-red-500 transition-colors">Выйти</button>
     </div>
   </header>
@@ -249,10 +271,22 @@
       <!-- Pet filter -->
       <div id="petSelectorStats" class="flex gap-2 overflow-x-auto pb-1"></div>
 
+      <!-- Tabs -->
+      <div class="flex bg-gray-100 rounded-xl p-1">
+        <button onclick="selectStatsTab('active')" id="statsTabActive"
+          class="flex-1 py-2 rounded-lg text-sm font-medium transition-all">
+          Текущие
+        </button>
+        <button onclick="selectStatsTab('ended')" id="statsTabEnded"
+          class="flex-1 py-2 rounded-lg text-sm font-medium transition-all">
+          Завершённые
+        </button>
+      </div>
+
       <div id="statsList" class="space-y-3"></div>
       <div id="noStats" class="text-center py-12 text-gray-400 hidden">
         <div class="text-4xl mb-2">📊</div>
-        <div class="text-sm">Завершённых курсов пока нет</div>
+        <div id="noStatsText" class="text-sm">Завершённых курсов пока нет</div>
       </div>
     </div>
 
@@ -605,6 +639,23 @@ async function submitResetPassword(e) {
     msgEl.textContent = (await extractErrorMessage(res)) || 'Ссылка недействительна или устарела';
     msgEl.className = 'text-xs text-center text-red-500';
     msgEl.classList.remove('hidden');
+  }
+}
+
+// ===== BUG REPORTS =====
+async function submitBugReport(event) {
+  event.preventDefault();
+  const messageEl = document.getElementById('bugReportMessage');
+  const statusEl = document.getElementById('bugReportMessageStatus');
+  const res = await apiFetch('/bug-reports', 'POST', { message: messageEl.value });
+  if (res.ok) {
+    messageEl.value = '';
+    closeModal('bugReportModal');
+    showToast('Спасибо! Сообщение об ошибке отправлено');
+  } else {
+    statusEl.textContent = (await extractErrorMessage(res)) || 'Не удалось отправить сообщение';
+    statusEl.className = 'text-xs text-center text-red-500';
+    statusEl.classList.remove('hidden');
   }
 }
 
@@ -1156,29 +1207,50 @@ async function deleteDrug(id) {
 }
 
 // ===== STATS =====
+let statsTab = 'active';
+
+function selectStatsTab(tab) {
+  statsTab = tab;
+  renderStats();
+}
+
 async function renderStats() {
   if (!selectedPetId) return;
   renderPetSelectors();
+
+  document.getElementById('statsTabActive').className = 'flex-1 py-2 rounded-lg text-sm font-medium transition-all'
+    + (statsTab === 'active' ? ' bg-white shadow text-gray-800' : ' text-gray-500');
+  document.getElementById('statsTabEnded').className = 'flex-1 py-2 rounded-lg text-sm font-medium transition-all'
+    + (statsTab === 'ended' ? ' bg-white shadow text-gray-800' : ' text-gray-500');
+
   const list = document.getElementById('statsList');
   const empty = document.getElementById('noStats');
   list.innerHTML = '';
 
-  const res = await apiFetch(`/medications/pet/${selectedPetId}/stats`);
+  const path = statsTab === 'active' ? '/stats/active' : '/stats';
+  const res = await apiFetch(`/medications/pet/${selectedPetId}${path}`);
   if (!res.ok) return;
   const stats = await res.json();
-  if (!stats.length) { empty.classList.remove('hidden'); return; }
+  if (!stats.length) {
+    document.getElementById('noStatsText').textContent =
+      statsTab === 'active' ? 'Текущих курсов пока нет' : 'Завершённых курсов пока нет';
+    empty.classList.remove('hidden');
+    return;
+  }
   empty.classList.add('hidden');
 
   stats.forEach(s => {
-    const reasonLabel = s.ended_reason === 'cancelled' ? '🛑 Курс отменён' : '✅ Курс завершён';
+    const badge = s.status === 'cancelled' ? '🛑 Курс отменён'
+      : s.status === 'active' ? '🔵 Курс идёт'
+      : '✅ Курс завершён';
     list.insertAdjacentHTML('beforeend', `
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
         <div class="flex items-center justify-between">
           <span class="font-semibold text-gray-800">${esc(s.medication_name)}</span>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">${reasonLabel}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">${badge}</span>
         </div>
         <div class="text-xs text-gray-400 mt-1">${fromApiDate(s.start_date)}${s.end_date ? ' → ' + fromApiDate(s.end_date) : ''}</div>
-        <div class="grid grid-cols-3 gap-2 mt-3">
+        <div class="grid ${s.status === 'active' ? 'grid-cols-4' : 'grid-cols-3'} gap-2 mt-3">
           <div class="bg-green-50 rounded-xl p-2 text-center">
             <div class="text-lg font-bold text-green-600">${s.taken}</div>
             <div class="text-xs text-green-700">Принято</div>
@@ -1191,6 +1263,11 @@ async function renderStats() {
             <div class="text-lg font-bold text-red-600">${s.missed}</div>
             <div class="text-xs text-red-700">Не принято</div>
           </div>
+          ${s.status === 'active' ? `
+          <div class="bg-blue-50 rounded-xl p-2 text-center">
+            <div class="text-lg font-bold text-blue-600">${s.pending}</div>
+            <div class="text-xs text-blue-700">Осталось</div>
+          </div>` : ''}
         </div>
       </div>
     `);

@@ -316,7 +316,7 @@ async def test_stats_endpoint_returns_cancelled_course_summary(
     entries = [s for s in stats_res.json() if s["medication_id"] == med_id]
     assert len(entries) == 1
     assert entries[0]["taken"] == 1
-    assert entries[0]["ended_reason"] == "cancelled"
+    assert entries[0]["status"] == "cancelled"
 
 
 @pytest.mark.asyncio
@@ -340,3 +340,43 @@ async def test_stats_endpoint_excludes_active_courses(
     stats_res = await client.get(f"/api/v1/medications/pet/{pet_id}/stats", headers=auth_headers)
     assert stats_res.status_code == 200
     assert all(s["medication_id"] != med_id for s in stats_res.json())
+
+
+@pytest.mark.asyncio
+async def test_active_stats_endpoint_returns_ongoing_course_progress(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    pet_res = await client.post(
+        "/api/v1/pets", headers=auth_headers, json={"name": "СтатТекущий", "species": "кот"}
+    )
+    pet_id = pet_res.json()["id"]
+    drug_id = await _create_drug(client, auth_headers, name="ТекущийКурс", strength="5мг")
+    today = date.today()
+
+    med_res = await client.post("/api/v1/medications", headers=auth_headers, json={
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "5мг",
+        "frequency_per_day": 1, "start_date": today.isoformat(),
+        "end_date": (today + timedelta(days=10)).isoformat(),
+    })
+    med_id = med_res.json()["id"]
+
+    cal_res = await client.get(
+        f"/api/v1/calendar/pet/{pet_id}/{today.isoformat()}", headers=auth_headers
+    )
+    dose_id = cal_res.json()["doses"][0]["dose_id"]
+    await client.patch(f"/api/v1/doses/{dose_id}", headers=auth_headers, json={"status": "taken"})
+
+    # Not-yet-ended courses don't show up in the "ended" summary...
+    ended_res = await client.get(f"/api/v1/medications/pet/{pet_id}/stats", headers=auth_headers)
+    assert all(s["medication_id"] != med_id for s in ended_res.json())
+
+    # ...but do show up, with live progress, in the "active" summary.
+    active_res = await client.get(
+        f"/api/v1/medications/pet/{pet_id}/stats/active", headers=auth_headers
+    )
+    assert active_res.status_code == 200
+    entries = [s for s in active_res.json() if s["medication_id"] == med_id]
+    assert len(entries) == 1
+    assert entries[0]["status"] == "active"
+    assert entries[0]["taken"] == 1
+    assert entries[0]["pending"] == 10  # 11-day course, 1 dose/day, 1 already taken

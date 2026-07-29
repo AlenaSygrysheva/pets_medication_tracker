@@ -28,6 +28,23 @@ class MedicationRepository:
         result = await self.db.execute(q)
         return list(result.scalars().all())
 
+    async def get_active_by_pet(self, pet_id: int) -> list[Medication]:
+        """Medications currently in progress — active and with at least one dose still pending."""
+        has_pending = (
+            select(Dose.id)
+            .where(Dose.medication_id == Medication.id, Dose.status == DoseStatus.PENDING)
+            .exists()
+        )
+        result = await self.db.execute(
+            self._with_drug().where(
+                Medication.pet_id == pet_id,
+                Medication.is_deleted.is_(False),
+                Medication.is_active.is_(True),
+                has_pending,
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_ended_by_pet(self, pet_id: int) -> list[Medication]:
         """Medications whose course has ended — either cancelled, or with no pending
         doses left (a missed/skipped dose keeps getting replaced further down the
