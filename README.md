@@ -298,7 +298,7 @@ poetry run pytest tests/ --cov=app --cov-report=html
 - 📧 Email: alena_sygrysheva@mail.ru
 - 💬 Telegram: [@Blue_Koshara](https://t.me/Blue_Koshara)
 - 🐛 Баги: [GitHub Issues](https://github.com/AlenaSygrysheva/pets_medication_tracker/issues)
-- 💰 Поддержать [DonationAlert](https://www.donationalerts.com/r/blue_koshara)
+- 💰 Поддержать с пометками "на проект" [DonationAlert](https://www.donationalerts.com/r/blue_koshara) 
 ---
 
 ## 🔄 Changelog
