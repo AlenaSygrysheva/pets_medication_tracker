@@ -31,10 +31,10 @@ ruff = ">=0.4.4"
 mypy = ">=1.10.0"
 
 
-[[tool.poetry.source]]
-name = "aliyun"
-url = "https://mirrors.aliyun.com/pypi/simple/"
-priority = "primary"
+#[[tool.poetry.source]]
+#name = "aliyun"
+#url = "https://mirrors.aliyun.com/pypi/simple/"
+#priority = "primary"
 
 [build-system]
 requires = ["poetry-core"]
