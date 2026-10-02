@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from app.models.clinic import Clinic
     from app.models.drug import Drug
     from app.models.pet import Pet
 
@@ -30,3 +31,4 @@ class User(Base):
 
     pets: Mapped[list[Pet]] = relationship("Pet", back_populates="owner", cascade="all, delete-orphan")
     drugs: Mapped[list[Drug]] = relationship("Drug", back_populates="owner", cascade="all, delete-orphan")
+    clinics: Mapped[list[Clinic]] = relationship("Clinic", back_populates="owner", cascade="all, delete-orphan")

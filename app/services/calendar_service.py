@@ -9,11 +9,13 @@ from app.core.exceptions import ForbiddenError, NotFoundError
 from app.models.dose import DoseStatus
 from app.repositories.dose_repo import DoseRepository
 from app.repositories.pet_repo import PetRepository
+from app.repositories.vet_appointment_repo import VetAppointmentRepository
 from app.schemas.calendar import (
     CalendarDayResponse,
     CalendarMonthDay,
     CalendarMonthPetEntry,
     CalendarMonthResponse,
+    DayStatus,
     DoseActionRequest,
     DoseResponse,
     DoseSlot,
@@ -29,6 +31,7 @@ class CalendarService:
     def __init__(self, db: AsyncSession):
         self.pet_repo = PetRepository(db)
         self.dose_repo = DoseRepository(db)
+        self.vet_appointment_repo = VetAppointmentRepository(db)
         self.medication_service = MedicationService(db)
 
     async def get_day(self, pet_id: int, owner_id: int, day: date) -> CalendarDayResponse:
@@ -74,22 +77,39 @@ class CalendarService:
         start = date(year, month, 1)
         end = date(year, month, calendar_module.monthrange(year, month)[1])
         rows = await self.dose_repo.get_month_doses(owner_id, start, end)
+        vet_appointment_dates = await self.vet_appointment_repo.get_appointment_dates_by_owner(
+            owner_id, start, end
+        )
 
         pets_by_day: dict[date, dict[int, str]] = defaultdict(dict)
-        for scheduled_at, pet_id, pet_name in rows:
-            pets_by_day[scheduled_at.date()][pet_id] = pet_name
+        statuses_by_day: dict[date, list[DoseStatus]] = defaultdict(list)
+        for scheduled_at, pet_id, pet_name, status in rows:
+            day = scheduled_at.date()
+            pets_by_day[day][pet_id] = pet_name
+            statuses_by_day[day].append(status)
 
+        all_days = set(pets_by_day.keys()) | vet_appointment_dates
         days = [
             CalendarMonthDay(
                 date=day,
                 pets=[
                     CalendarMonthPetEntry(pet_id=pid, pet_name=name, initial=name[0].upper())
-                    for pid, name in sorted(pets.items(), key=lambda entry: entry[1])
+                    for pid, name in sorted(pets_by_day[day].items(), key=lambda entry: entry[1])
                 ],
+                status=self._day_status(statuses_by_day[day]),
+                has_vet_appointment=day in vet_appointment_dates,
             )
-            for day, pets in sorted(pets_by_day.items())
+            for day in sorted(all_days)
         ]
         return CalendarMonthResponse(year=year, month=month, days=days)
+
+    @staticmethod
+    def _day_status(statuses: list[DoseStatus]) -> DayStatus:
+        if statuses and all(status == DoseStatus.TAKEN for status in statuses):
+            return DayStatus.ALL_TAKEN
+        if any(status != DoseStatus.PENDING for status in statuses):
+            return DayStatus.PARTIAL
+        return DayStatus.NONE
 
     async def record_dose(self, dose_id: int, owner_id: int, data: DoseActionRequest) -> DoseResponse:
         dose = await self.dose_repo.get_by_id(dose_id)

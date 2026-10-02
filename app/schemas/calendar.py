@@ -1,8 +1,15 @@
 from datetime import date, datetime
+from enum import StrEnum
 
 from pydantic import BaseModel
 
 from app.models.dose import DoseStatus
+
+
+class DayStatus(StrEnum):
+    ALL_TAKEN = "all_taken"
+    PARTIAL = "partial"
+    NONE = "none"
 
 
 class DoseSlot(BaseModel):
@@ -54,6 +61,8 @@ class CalendarMonthPetEntry(BaseModel):
 class CalendarMonthDay(BaseModel):
     date: date
     pets: list[CalendarMonthPetEntry]
+    status: DayStatus
+    has_vet_appointment: bool = False
 
 
 class CalendarMonthResponse(BaseModel):

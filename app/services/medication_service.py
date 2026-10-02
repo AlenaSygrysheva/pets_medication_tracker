@@ -183,7 +183,7 @@ class MedicationService:
         return [f"{min(8 + i * interval_hours, 23):02d}:00" for i in range(frequency_per_day)]
 
     async def _generate_doses(self, medication: Medication) -> None:
-        end = medication.end_date or (medication.start_date + timedelta(days=30))
+        end = medication.end_date or date(medication.start_date.year, 12, 31)
         doses: list[Dose] = []
 
         times = [datetime.strptime(t, "%H:%M").time() for t in medication.reminder_times]

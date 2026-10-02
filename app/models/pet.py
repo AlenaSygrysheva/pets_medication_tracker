@@ -4,8 +4,10 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from app.models.diagnosis import Diagnosis
     from app.models.medication import Medication
     from app.models.user import User
+    from app.models.vet_appointment import VetAppointment
 
 from sqlalchemy import Date, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -33,4 +35,10 @@ class Pet(Base):
     owner: Mapped[User] = relationship("User", back_populates="pets")
     medications: Mapped[list[Medication]] = relationship(
         "Medication", back_populates="pet", cascade="all, delete-orphan"
+    )
+    vet_appointments: Mapped[list[VetAppointment]] = relationship(
+        "VetAppointment", back_populates="pet", cascade="all, delete-orphan"
+    )
+    diagnoses: Mapped[list[Diagnosis]] = relationship(
+        "Diagnosis", back_populates="pet", cascade="all, delete-orphan"
     )

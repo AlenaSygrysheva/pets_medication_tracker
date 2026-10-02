@@ -128,12 +128,12 @@ class DoseRepository:
 
     async def get_month_doses(
         self, owner_id: int, start: date, end: date
-    ) -> list[tuple[datetime, int, str]]:
-        """(scheduled_at, pet_id, pet_name) for every dose in range across all of the owner's pets."""
+    ) -> list[tuple[datetime, int, str, DoseStatus]]:
+        """(scheduled_at, pet_id, pet_name, status) for every dose in range across all of the owner's pets."""
         start_dt = datetime.combine(start, time.min, tzinfo=UTC)
         end_dt = datetime.combine(end, time.max, tzinfo=UTC)
         result = await self.db.execute(
-            select(Dose.scheduled_at, Pet.id, Pet.name)
+            select(Dose.scheduled_at, Pet.id, Pet.name, Dose.status)
             .join(Medication, Dose.medication_id == Medication.id)
             .join(Pet, Medication.pet_id == Pet.id)
             .where(
@@ -144,4 +144,7 @@ class DoseRepository:
                 )
             )
         )
-        return [(scheduled_at, pet_id, pet_name) for scheduled_at, pet_id, pet_name in result.all()]
+        return [
+            (scheduled_at, pet_id, pet_name, status)
+            for scheduled_at, pet_id, pet_name, status in result.all()
+        ]

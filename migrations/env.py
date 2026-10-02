@@ -11,6 +11,9 @@ from app.database import Base
 from app.models import User, Pet, Medication, Dose  # noqa: F401 — ensure models are registered
 from app.models.bug_report import BugReport  # noqa: F401 — ensure model is registered
 from app.models.drug import Drug  # noqa: F401 — ensure model is registered
+from app.models.clinic import Clinic  # noqa: F401 — ensure model is registered
+from app.models.vet_appointment import VetAppointment  # noqa: F401 — ensure model is registered
+from app.models.diagnosis import Diagnosis  # noqa: F401 — ensure model is registered
 from app.config import settings
 
 config = context.config

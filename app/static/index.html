@@ -158,6 +158,10 @@
       class="flex-1 py-3 flex flex-col items-center gap-1 text-xs text-gray-400">
       <span class="text-xl">🐶</span>Питомцы
     </button>
+    <button onclick="showPage('vet')" id="nav-vet"
+      class="flex-1 py-3 flex flex-col items-center gap-1 text-xs text-gray-400">
+      <span class="text-xl">🩺</span>Приём врача
+    </button>
     <button onclick="showPage('medications')" id="nav-medications"
       class="flex-1 py-3 flex flex-col items-center gap-1 text-xs text-gray-400">
       <span class="text-xl">💊</span>Препараты
@@ -185,6 +189,12 @@
           <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
         </div>
         <div id="calendarMonthGrid" class="grid grid-cols-7 gap-1"></div>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-400">
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded border-2 border-red-500"></span>приём врача</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded border-2 border-cyan-500"></span>все принято</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded border-2 border-gray-400"></span>что-то не принято</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded border border-gray-100"></span>ничего не отмечено</span>
+        </div>
       </div>
 
       <!-- Day view: doses for the tapped date -->
@@ -237,6 +247,28 @@
       <div id="noPets" class="text-center py-12 text-gray-400 hidden">
         <div class="text-4xl mb-2">🐾</div>
         <div class="text-sm">Добавьте первого питомца</div>
+      </div>
+    </div>
+
+    <!-- ===== VET APPOINTMENTS PAGE ===== -->
+    <div id="page-vet" class="page px-4 space-y-4 hidden">
+      <div class="flex items-center justify-between py-2">
+        <h2 class="font-semibold text-gray-800">Приём врача</h2>
+        <div class="flex gap-2">
+          <button onclick="openClinicCatalogModal()"
+            class="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium">📋 Клиники</button>
+          <button onclick="openAddVetModal()"
+            class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium">+ Приём</button>
+        </div>
+      </div>
+
+      <!-- Pet filter -->
+      <div id="petSelectorVet" class="flex gap-2 overflow-x-auto pb-1"></div>
+
+      <div id="vetList" class="space-y-3"></div>
+      <div id="noVet" class="text-center py-12 text-gray-400 hidden">
+        <div class="text-4xl mb-2">🩺</div>
+        <div class="text-sm">Приёмов врача не запланировано</div>
       </div>
     </div>
 
@@ -337,6 +369,55 @@
   </div>
 </div>
 
+<!-- Diagnoses List Modal -->
+<div id="diagnosesListModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Диагнозы: <span id="diagnosesPetName"></span></h3>
+      <button onclick="closeModal('diagnosesListModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <button onclick="openAddDiagnosisModal()"
+      class="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium">+ Добавить диагноз</button>
+    <div id="diagnosesList" class="space-y-3"></div>
+    <div id="noDiagnoses" class="text-center py-10 text-gray-400 hidden">
+      <div class="text-4xl mb-2">🩻</div>
+      <div class="text-sm">Диагнозов пока нет</div>
+    </div>
+  </div>
+</div>
+
+<!-- Diagnosis Modal (create/edit) -->
+<div id="diagnosisModal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 id="diagnosisModalTitle" class="font-semibold text-gray-800">Добавить диагноз</h3>
+      <button onclick="closeModal('diagnosisModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <form onsubmit="saveDiagnosis(event)" class="space-y-3">
+      <input type="hidden" id="diagnosisId" />
+      <input type="text" id="diagnosisName" placeholder="Название *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <label class="flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" id="diagnosisConfirmed" onchange="toggleDiagnosisDoctorField()" />
+        Подтверждён врачом
+      </label>
+      <input type="text" id="diagnosisDoctorName" placeholder="Имя врача *"
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 hidden" />
+      <textarea id="diagnosisComments" placeholder="Комментарии (необязательно)" rows="2"
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+      <div id="diagnosisModalError" class="text-xs text-center text-red-500 hidden"></div>
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Сохранить
+      </button>
+      <button type="button" id="diagnosisDeleteBtn" onclick="deleteDiagnosisFromModal()"
+        class="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-sm font-medium hidden">
+        Удалить диагноз
+      </button>
+    </form>
+  </div>
+</div>
+
 <!-- Medication Modal -->
 <div id="medModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
   <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]">
@@ -396,6 +477,7 @@
         <input type="text" id="medEndDate" placeholder="дд/мм/гггг" maxlength="10"
           oninput="autoDateSlash(this); updateDosageCalculator()"
           class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <div class="text-[10px] text-gray-400 mt-1">Курсы препаратов без конечной даты действуют до конца текущего года</div>
       </div>
       <textarea id="medInstructions" placeholder="Инструкции (до/после еды и т.д.)" rows="2"
         class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
@@ -449,6 +531,105 @@
   </div>
 </div>
 
+<!-- Vet Appointment Modal -->
+<div id="vetModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]">
+    <div class="flex items-center justify-between">
+      <h3 id="vetModalTitle" class="font-semibold text-gray-800">Добавить приём врача</h3>
+      <button onclick="closeModal('vetModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <form onsubmit="saveVetAppointment(event)" class="space-y-3">
+      <input type="hidden" id="vetId" />
+      <select id="vetPetId" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <option value="">Выберите питомца *</option>
+      </select>
+      <div>
+        <select id="vetClinicId" required
+          class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="">Выберите вет клинику *</option>
+        </select>
+        <button type="button" onclick="openAddClinicModal(true)" class="text-xs text-blue-500 hover:underline mt-1">+ Новая клиника в каталог</button>
+      </div>
+      <input type="text" id="vetDoctorName" placeholder="Имя врача (необязательно)"
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Дата и время приёма *</label>
+        <div class="grid grid-cols-2 gap-2">
+          <input type="text" id="vetAppointmentDate" required placeholder="дд/мм/гггг" maxlength="10"
+            oninput="autoDateSlash(this)"
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <input type="time" id="vetAppointmentTime" required
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        </div>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Дата и время напоминания *</label>
+        <div class="grid grid-cols-2 gap-2">
+          <input type="text" id="vetReminderDate" required placeholder="дд/мм/гггг" maxlength="10"
+            oninput="autoDateSlash(this)"
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <input type="time" id="vetReminderTime" required
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        </div>
+        <div class="text-[10px] text-gray-400 mt-1">Не позже даты и времени приёма</div>
+      </div>
+      <textarea id="vetComments" placeholder="Комментарии (необязательно)" rows="2"
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+      <div id="vetModalError" class="text-xs text-center text-red-500 hidden"></div>
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Сохранить
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Clinic Catalog Modal -->
+<div id="clinicCatalogModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Каталог клиник</h3>
+      <button onclick="closeModal('clinicCatalogModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <button onclick="openAddClinicModal(false)"
+      class="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium">+ Добавить клинику</button>
+    <div id="clinicCatalogList" class="space-y-3"></div>
+    <div id="noClinics" class="text-center py-10 text-gray-400 hidden">
+      <div class="text-4xl mb-2">📋</div>
+      <div class="text-sm">Каталог пуст</div>
+    </div>
+  </div>
+</div>
+
+<!-- Clinic Modal (create/edit catalog entry) -->
+<div id="clinicModal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 id="clinicModalTitle" class="font-semibold text-gray-800">Добавить клинику</h3>
+      <button onclick="closeModal('clinicModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <form onsubmit="saveClinic(event)" class="space-y-3">
+      <input type="hidden" id="clinicId" />
+      <input type="hidden" id="clinicFromVetModal" />
+      <input type="text" id="clinicName" placeholder="Название клиники *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="text" id="clinicAddress" placeholder="Адрес *" required
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="tel" id="clinicPhone" placeholder="Телефон, только цифры (напр. 79991234567) *" required
+        inputmode="numeric" maxlength="15" oninput="this.value = this.value.replace(/\D/g, '')"
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <input type="text" id="clinicWebsite" placeholder="Сайт клиники (необязательно)"
+        class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Сохранить
+      </button>
+    </form>
+    <div id="clinicModalError" class="text-xs text-center text-red-500 hidden"></div>
+  </div>
+</div>
+
 <!-- Dose Action Modal -->
 <div id="doseModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
   <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
@@ -488,6 +669,8 @@ let activeDoseId = null;
 let activeDoseMedId = null;
 let medsPetFilter = null;
 let currentMeds = [];
+let currentVetAppointments = [];
+let currentClinics = [];
 
 // ===== AUTH =====
 function showAuthTab(tab) {
@@ -708,6 +891,7 @@ function showPage(name) {
 
   if (name === 'calendar') showCalendarMonthView();
   if (name === 'pets') renderPets();
+  if (name === 'vet') renderVetAppointments();
   if (name === 'medications') renderMedications();
   if (name === 'stats') renderStats();
 }
@@ -744,6 +928,7 @@ function renderPets() {
             </div>
           </div>
           <div class="flex gap-1 flex-shrink-0">
+            <button onclick="openDiagnosesListModal(${pet.id}, '${esc(pet.name)}')" class="text-purple-400 hover:text-purple-600 text-sm px-2">🩻</button>
             <button onclick="editPet(${pet.id})" class="text-blue-400 hover:text-blue-600 text-sm px-2">✏️</button>
             <button onclick="deletePet(${pet.id})" class="text-red-400 hover:text-red-600 text-sm px-2">🗑️</button>
           </div>
@@ -754,7 +939,7 @@ function renderPets() {
 }
 
 function renderPetSelectors() {
-  ['petSelectorCal', 'petSelectorMed', 'petSelectorStats'].forEach(id => {
+  ['petSelectorCal', 'petSelectorVet', 'petSelectorMed', 'petSelectorStats'].forEach(id => {
     const el = document.getElementById(id);
     el.innerHTML = '';
     pets.forEach(pet => {
@@ -773,6 +958,7 @@ function selectPet(petId, selectorId) {
   selectedPetId = petId;
   renderPetSelectors();
   if (selectorId === 'petSelectorCal') renderCalendarDayDetail();
+  if (selectorId === 'petSelectorVet') renderVetAppointments();
   if (selectorId === 'petSelectorMed') renderMedications();
   if (selectorId === 'petSelectorStats') renderStats();
 }
@@ -863,6 +1049,133 @@ async function deletePet(id) {
     renderPets();
     renderPetSelectors();
     showToast('Питомец удалён');
+  }
+}
+
+// ===== DIAGNOSES =====
+let currentDiagnosesPetId = null;
+let currentDiagnoses = [];
+
+async function openDiagnosesListModal(petId, petName) {
+  currentDiagnosesPetId = petId;
+  document.getElementById('diagnosesPetName').textContent = petName;
+  await loadDiagnoses();
+  renderDiagnosesList();
+  openModal('diagnosesListModal');
+}
+
+async function loadDiagnoses() {
+  const res = await apiFetch(`/diagnoses?pet_id=${currentDiagnosesPetId}`);
+  currentDiagnoses = res.ok ? await res.json() : [];
+}
+
+function renderDiagnosesList() {
+  const list = document.getElementById('diagnosesList');
+  const empty = document.getElementById('noDiagnoses');
+  list.innerHTML = '';
+  if (!currentDiagnoses.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  currentDiagnoses.forEach(d => {
+    list.insertAdjacentHTML('beforeend', `
+      <div onclick="openEditDiagnosisModal(${d.id})"
+        class="bg-gray-50 rounded-2xl p-4 border border-gray-100 cursor-pointer hover:bg-gray-100">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-gray-800">${esc(d.name)}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full ${d.confirmed_by_vet ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}">
+            ${d.confirmed_by_vet ? 'Подтверждён' : 'Не подтверждён'}
+          </span>
+        </div>
+        ${d.confirmed_by_vet && d.doctor_name ? `<div class="text-xs text-gray-500 mt-0.5">Врач: ${esc(d.doctor_name)}</div>` : ''}
+        ${d.comments ? `<div class="text-xs text-gray-400 mt-0.5 truncate">${esc(d.comments)}</div>` : ''}
+      </div>
+    `);
+  });
+}
+
+function toggleDiagnosisDoctorField() {
+  const checked = document.getElementById('diagnosisConfirmed').checked;
+  const field = document.getElementById('diagnosisDoctorName');
+  field.classList.toggle('hidden', !checked);
+  field.required = checked;
+  if (!checked) field.value = '';
+}
+
+function openAddDiagnosisModal() {
+  document.getElementById('diagnosisId').value = '';
+  document.getElementById('diagnosisModalTitle').textContent = 'Добавить диагноз';
+  document.getElementById('diagnosisName').value = '';
+  document.getElementById('diagnosisConfirmed').checked = false;
+  document.getElementById('diagnosisDoctorName').value = '';
+  document.getElementById('diagnosisComments').value = '';
+  document.getElementById('diagnosisModalError').classList.add('hidden');
+  document.getElementById('diagnosisDeleteBtn').classList.add('hidden');
+  toggleDiagnosisDoctorField();
+  openModal('diagnosisModal');
+}
+
+function openEditDiagnosisModal(id) {
+  const d = currentDiagnoses.find(x => x.id === id);
+  if (!d) return;
+  document.getElementById('diagnosisId').value = d.id;
+  document.getElementById('diagnosisModalTitle').textContent = 'Редактировать диагноз';
+  document.getElementById('diagnosisName').value = d.name;
+  document.getElementById('diagnosisConfirmed').checked = d.confirmed_by_vet;
+  document.getElementById('diagnosisDoctorName').value = d.doctor_name || '';
+  document.getElementById('diagnosisComments').value = d.comments || '';
+  document.getElementById('diagnosisModalError').classList.add('hidden');
+  document.getElementById('diagnosisDeleteBtn').classList.remove('hidden');
+  toggleDiagnosisDoctorField();
+  openModal('diagnosisModal');
+}
+
+async function saveDiagnosis(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('diagnosisModalError');
+  errEl.classList.add('hidden');
+
+  const diagnosisId = document.getElementById('diagnosisId').value;
+  const confirmed = document.getElementById('diagnosisConfirmed').checked;
+  const doctorName = document.getElementById('diagnosisDoctorName').value || null;
+  if (confirmed && !doctorName) {
+    errEl.textContent = 'Укажите имя врача для подтверждённого диагноза';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const body = {
+    name: document.getElementById('diagnosisName').value,
+    confirmed_by_vet: confirmed,
+    doctor_name: doctorName,
+    comments: document.getElementById('diagnosisComments').value || null,
+  };
+  const res = diagnosisId
+    ? await apiFetch(`/diagnoses/${diagnosisId}`, 'PATCH', body)
+    : await apiFetch('/diagnoses', 'POST', { ...body, pet_id: currentDiagnosesPetId });
+
+  if (!res.ok) {
+    const err = await res.json();
+    errEl.textContent = err.detail || 'Ошибка сохранения';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  closeModal('diagnosisModal');
+  await loadDiagnoses();
+  renderDiagnosesList();
+  showToast(diagnosisId ? 'Диагноз обновлён' : 'Диагноз добавлен');
+}
+
+async function deleteDiagnosisFromModal() {
+  const diagnosisId = document.getElementById('diagnosisId').value;
+  if (!diagnosisId || !confirm('Удалить диагноз?')) return;
+  const res = await apiFetch(`/diagnoses/${diagnosisId}`, 'DELETE');
+  if (res.ok) {
+    closeModal('diagnosisModal');
+    await loadDiagnoses();
+    renderDiagnosesList();
+    showToast('Диагноз удалён');
+  } else {
+    showToast('Не удалось удалить диагноз', true);
   }
 }
 
@@ -1206,6 +1519,285 @@ async function deleteDrug(id) {
   }
 }
 
+// ===== VET APPOINTMENTS =====
+async function renderVetAppointments() {
+  if (!selectedPetId) return;
+  const res = await apiFetch(`/vet-appointments?pet_id=${selectedPetId}`);
+  renderPetSelectors();
+  const list = document.getElementById('vetList');
+  const empty = document.getElementById('noVet');
+  list.innerHTML = '';
+  if (!res.ok) return;
+  currentVetAppointments = await res.json();
+  if (!currentVetAppointments.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  currentVetAppointments.forEach(v => {
+    list.insertAdjacentHTML('beforeend', `
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="font-semibold text-gray-800">${esc(v.clinic.name)}</div>
+            ${v.doctor_name ? `<div class="text-sm text-gray-600 mt-0.5">Врач: ${esc(v.doctor_name)}</div>` : ''}
+            <div class="text-xs text-gray-400 mt-1">Приём: ${formatApiDateTime(v.appointment_at)}</div>
+            <div class="text-xs text-gray-400">Напоминание: ${formatApiDateTime(v.reminder_at)}</div>
+            ${v.comments ? `<div class="text-xs text-blue-600 mt-1">ℹ️ ${esc(v.comments)}</div>` : ''}
+          </div>
+          <div class="flex gap-1">
+            <button onclick="editVetAppointment(${v.id})" class="text-blue-400 hover:text-blue-600 text-sm px-2">✏️</button>
+            <button onclick="deleteVetAppointment(${v.id})" class="text-red-400 hover:text-red-600 text-sm px-2">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `);
+  });
+}
+
+async function deleteVetAppointment(id) {
+  if (!confirm('Удалить приём врача?')) return;
+  const res = await apiFetch(`/vet-appointments/${id}`, 'DELETE');
+  if (res.ok) { await renderVetAppointments(); showToast('Приём удалён'); }
+}
+
+async function openAddVetModal() {
+  document.getElementById('vetId').value = '';
+  document.getElementById('vetModalTitle').textContent = 'Добавить приём врача';
+  document.getElementById('vetPetId').innerHTML = '<option value="">Выберите питомца *</option>';
+  document.getElementById('vetPetId').disabled = false;
+  pets.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    if (p.id === selectedPetId) opt.selected = true;
+    document.getElementById('vetPetId').appendChild(opt);
+  });
+  await loadClinics();
+  populateClinicSelect();
+  document.getElementById('vetDoctorName').value = '';
+  document.getElementById('vetComments').value = '';
+  document.getElementById('vetAppointmentDate').value = '';
+  document.getElementById('vetAppointmentTime').value = '';
+  document.getElementById('vetReminderDate').value = '';
+  document.getElementById('vetReminderTime').value = '';
+  document.getElementById('vetModalError').classList.add('hidden');
+  openModal('vetModal');
+}
+
+async function editVetAppointment(id) {
+  const v = currentVetAppointments.find(x => x.id === id);
+  if (!v) return;
+  document.getElementById('vetId').value = v.id;
+  document.getElementById('vetModalTitle').textContent = 'Редактировать приём врача';
+  document.getElementById('vetPetId').innerHTML = '';
+  const opt = document.createElement('option');
+  opt.value = v.pet_id;
+  opt.textContent = pets.find(p => p.id === v.pet_id)?.name || v.pet_id;
+  opt.selected = true;
+  document.getElementById('vetPetId').appendChild(opt);
+  document.getElementById('vetPetId').disabled = true;
+  await loadClinics();
+  populateClinicSelect(v.clinic.id);
+  document.getElementById('vetDoctorName').value = v.doctor_name || '';
+  document.getElementById('vetComments').value = v.comments || '';
+  const appt = fromApiDateTime(v.appointment_at);
+  document.getElementById('vetAppointmentDate').value = appt.date;
+  document.getElementById('vetAppointmentTime').value = appt.time;
+  const rem = fromApiDateTime(v.reminder_at);
+  document.getElementById('vetReminderDate').value = rem.date;
+  document.getElementById('vetReminderTime').value = rem.time;
+  document.getElementById('vetModalError').classList.add('hidden');
+  openModal('vetModal');
+}
+
+async function saveVetAppointment(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('vetModalError');
+  errEl.classList.add('hidden');
+
+  const vetId = document.getElementById('vetId').value;
+  const appointmentAt = toApiDateTime(
+    document.getElementById('vetAppointmentDate').value,
+    document.getElementById('vetAppointmentTime').value
+  );
+  const reminderAt = toApiDateTime(
+    document.getElementById('vetReminderDate').value,
+    document.getElementById('vetReminderTime').value
+  );
+  if (!appointmentAt || !reminderAt) {
+    errEl.textContent = 'Заполните дату и время приёма и напоминания';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (reminderAt > appointmentAt) {
+    errEl.textContent = 'Время напоминания не может быть позже времени приёма';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const clinicId = parseInt(document.getElementById('vetClinicId').value);
+  const doctorName = document.getElementById('vetDoctorName').value || null;
+  const comments = document.getElementById('vetComments').value || null;
+
+  let res;
+  if (vetId) {
+    res = await apiFetch(`/vet-appointments/${vetId}`, 'PATCH', {
+      clinic_id: clinicId,
+      doctor_name: doctorName,
+      appointment_at: appointmentAt,
+      reminder_at: reminderAt,
+      comments: comments,
+    });
+  } else {
+    res = await apiFetch('/vet-appointments', 'POST', {
+      pet_id: parseInt(document.getElementById('vetPetId').value),
+      clinic_id: clinicId,
+      doctor_name: doctorName,
+      appointment_at: appointmentAt,
+      reminder_at: reminderAt,
+      comments: comments,
+    });
+  }
+
+  if (!res.ok) {
+    const err = await res.json();
+    errEl.textContent = err.detail || 'Ошибка сохранения';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  closeModal('vetModal');
+  await renderVetAppointments();
+  showToast(vetId ? 'Приём обновлён' : 'Приём добавлен');
+}
+
+// ===== CLINIC CATALOG =====
+async function loadClinics() {
+  const res = await apiFetch('/clinics');
+  if (res.ok) currentClinics = await res.json();
+}
+
+function populateClinicSelect(selectedClinicId) {
+  const select = document.getElementById('vetClinicId');
+  select.innerHTML = '<option value="">Выберите вет клинику *</option>';
+  currentClinics.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name;
+    if (c.id === selectedClinicId) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+async function openClinicCatalogModal() {
+  await loadClinics();
+  renderClinicCatalog();
+  openModal('clinicCatalogModal');
+}
+
+function renderClinicCatalog() {
+  const list = document.getElementById('clinicCatalogList');
+  const empty = document.getElementById('noClinics');
+  list.innerHTML = '';
+  if (!currentClinics.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  currentClinics.forEach(c => {
+    list.insertAdjacentHTML('beforeend', `
+      <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+        <div class="flex items-start justify-between">
+          <div class="min-w-0">
+            <div class="font-semibold text-gray-800">${esc(c.name)}</div>
+            ${c.address ? `<div class="text-xs text-gray-500 mt-0.5">${esc(c.address)}</div>` : ''}
+            ${c.phone ? `<div class="text-xs text-gray-500 mt-0.5">${esc(c.phone)}</div>` : ''}
+            ${c.website ? `<div class="text-xs text-blue-500 mt-0.5 truncate">${esc(c.website)}</div>` : ''}
+          </div>
+          <div class="flex gap-1 flex-shrink-0">
+            <button onclick="editClinic(${c.id})" class="text-blue-400 hover:text-blue-600 text-sm px-2">✏️</button>
+            <button onclick="deleteClinic(${c.id})" class="text-red-400 hover:text-red-600 text-sm px-2">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `);
+  });
+}
+
+function openAddClinicModal(fromVetModal) {
+  document.getElementById('clinicId').value = '';
+  document.getElementById('clinicFromVetModal').value = fromVetModal ? '1' : '';
+  document.getElementById('clinicModalTitle').textContent = 'Добавить клинику';
+  document.getElementById('clinicName').value = '';
+  document.getElementById('clinicAddress').value = '';
+  document.getElementById('clinicPhone').value = '';
+  document.getElementById('clinicWebsite').value = '';
+  document.getElementById('clinicModalError').classList.add('hidden');
+  openModal('clinicModal');
+}
+
+function editClinic(id) {
+  const clinic = currentClinics.find(c => c.id === id);
+  if (!clinic) return;
+  document.getElementById('clinicId').value = clinic.id;
+  document.getElementById('clinicFromVetModal').value = '';
+  document.getElementById('clinicModalTitle').textContent = 'Редактировать клинику';
+  document.getElementById('clinicName').value = clinic.name;
+  document.getElementById('clinicAddress').value = clinic.address || '';
+  document.getElementById('clinicPhone').value = clinic.phone || '';
+  document.getElementById('clinicWebsite').value = clinic.website || '';
+  document.getElementById('clinicModalError').classList.add('hidden');
+  openModal('clinicModal');
+}
+
+async function saveClinic(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('clinicModalError');
+  errEl.classList.add('hidden');
+  const clinicId = document.getElementById('clinicId').value;
+  const fromVetModal = document.getElementById('clinicFromVetModal').value === '1';
+  const phone = document.getElementById('clinicPhone').value;
+  if (!/^\d{7,15}$/.test(phone)) {
+    errEl.textContent = 'Телефон должен содержать только цифры (7-15 цифр)';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const body = {
+    name: document.getElementById('clinicName').value,
+    address: document.getElementById('clinicAddress').value,
+    phone: phone,
+    website: document.getElementById('clinicWebsite').value || null,
+  };
+  const res = clinicId
+    ? await apiFetch(`/clinics/${clinicId}`, 'PATCH', body)
+    : await apiFetch('/clinics', 'POST', body);
+
+  if (!res.ok) {
+    const err = await res.json();
+    errEl.textContent = err.detail || 'Ошибка сохранения';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const saved = await res.json();
+  await loadClinics();
+  closeModal('clinicModal');
+
+  if (fromVetModal) {
+    populateClinicSelect(saved.id);
+  } else {
+    renderClinicCatalog();
+  }
+  showToast(clinicId ? 'Клиника обновлена' : 'Клиника добавлена в каталог');
+}
+
+async function deleteClinic(id) {
+  if (!confirm('Удалить клинику из каталога?')) return;
+  const res = await apiFetch(`/clinics/${id}`, 'DELETE');
+  if (res.ok) {
+    await loadClinics();
+    renderClinicCatalog();
+    showToast('Клиника удалена из каталога');
+  } else {
+    const err = await res.json();
+    showToast(err.detail || 'Не удалось удалить клинику', true);
+  }
+}
+
 // ===== STATS =====
 let statsTab = 'active';
 
@@ -1293,10 +1885,12 @@ async function renderCalendarMonthView() {
     calendarMonthDate.toLocaleDateString('ru', { month: 'long', year: 'numeric' });
 
   const dayMap = {};
+  const statusMap = {};
+  const vetMap = {};
   const res = await apiFetch(`/calendar/month/${year}/${month}`);
   if (res.ok) {
     const data = await res.json();
-    data.days.forEach(d => { dayMap[d.date] = d.pets; });
+    data.days.forEach(d => { dayMap[d.date] = d.pets; statusMap[d.date] = d.status; vetMap[d.date] = d.has_vet_appointment; });
   }
 
   const grid = document.getElementById('calendarMonthGrid');
@@ -1315,9 +1909,15 @@ async function renderCalendarMonthView() {
     const isToday = isCurrentMonth && d === today.getDate();
     const pets = dayMap[dateStr] || [];
     const initials = pets.map(p => esc(p.initial)).join(' ');
+    const dayStatus = statusMap[dateStr] || 'none';
+    const hasVetAppointment = !!vetMap[dateStr];
+    const borderClass = hasVetAppointment ? 'border-4 border-red-500'
+      : dayStatus === 'all_taken' ? 'border-4 border-cyan-500'
+      : dayStatus === 'partial' ? 'border-4 border-gray-400'
+      : 'border border-gray-100';
     grid.insertAdjacentHTML('beforeend', `
       <button onclick="openCalendarDay(${year}, ${month}, ${d})"
-        class="aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-sm transition-all ${isToday ? 'bg-sky-400 text-white font-bold shadow' : 'bg-white border border-gray-100 text-gray-700 hover:bg-gray-50'}">
+        class="aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-sm transition-all ${borderClass} ${isToday ? 'bg-sky-400 text-white font-bold shadow' : 'bg-white text-gray-700 hover:bg-gray-50'}">
         <span>${d}</span>
         ${initials ? `<span class="text-[10px] leading-none ${isToday ? 'text-white/90' : 'text-blue-500'}">${initials}</span>` : ''}
       </button>
@@ -1372,7 +1972,7 @@ async function renderCalendarDayDetail() {
   empty.classList.add('hidden');
 
   data.doses.forEach(dose => {
-    const time = new Date(dose.scheduled_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+    const time = new Date(dose.scheduled_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
     const statusLabels = { taken: '✅ Принято', pending: '⏳ Ожидает', missed: '❌ Пропущено', skipped: '⏭ Пропущено', cancelled: '🛑 Курс отменён' };
     const statusClasses = { taken: 'bg-green-50 border-green-200', pending: 'bg-yellow-50 border-yellow-200', missed: 'bg-red-50 border-red-200', skipped: 'bg-gray-50 border-gray-200', cancelled: 'bg-gray-50 border-gray-200' };
     list.insertAdjacentHTML('beforeend', `
@@ -1465,6 +2065,28 @@ function toApiDate(s) {
   const [d, m, y] = s.split('/');
   if (!d || !m || !y) return null;
   return `${y}-${m}-${d}`;
+}
+
+// Combines "28/01/2024" + "09:00" into "2024-01-28T09:00:00Z" — stored literally
+// (no real timezone conversion), matching how dose reminder times are stored.
+function toApiDateTime(dateStr, timeStr) {
+  const isoDate = toApiDate(dateStr);
+  if (!isoDate || !timeStr) return null;
+  return `${isoDate}T${timeStr}:00Z`;
+}
+
+// Splits an ISO UTC datetime back into { date: "дд/мм/гггг", time: "HH:MM" } using
+// the UTC fields directly, so it reads back exactly what was entered.
+function fromApiDateTime(iso) {
+  const d = new Date(iso);
+  const date = `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+  const time = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  return { date, time };
+}
+
+function formatApiDateTime(iso) {
+  const { date, time } = fromApiDateTime(iso);
+  return `${date} ${time}`;
 }
 
 // Автоматически вставляет "/" после дня и месяца при вводе

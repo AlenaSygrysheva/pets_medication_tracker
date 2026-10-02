@@ -8,7 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1 import auth, bug_reports, calendar, doses, drugs, medications, pets
+from app.api.v1 import (
+    auth,
+    bug_reports,
+    calendar,
+    clinics,
+    diagnoses,
+    doses,
+    drugs,
+    medications,
+    pets,
+    vet_appointments,
+)
 from app.config import settings
 from app.core.cache import close_redis
 from app.core.logging import setup_logging
@@ -74,6 +85,9 @@ app.include_router(medications.router, prefix=API_PREFIX)
 app.include_router(calendar.router, prefix=API_PREFIX)
 app.include_router(doses.router, prefix=API_PREFIX)
 app.include_router(bug_reports.router, prefix=API_PREFIX)
+app.include_router(clinics.router, prefix=API_PREFIX)
+app.include_router(vet_appointments.router, prefix=API_PREFIX)
+app.include_router(diagnoses.router, prefix=API_PREFIX)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 

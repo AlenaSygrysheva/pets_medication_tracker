@@ -138,6 +138,61 @@ async def test_month_summary_only_includes_own_pets(client: AsyncClient) -> None
 
 
 @pytest.mark.asyncio
+async def test_month_summary_marks_day_with_vet_appointment(client: AsyncClient) -> None:
+    """A day that only has a vet appointment (no medication doses) must still show
+    up in the month summary, flagged so the calendar can draw its red border.
+
+    Uses a freshly registered user (not the shared `auth_headers` one) so this
+    assertion can't be polluted by vet appointments other tests create for
+    nearby dates under the shared test user."""
+    today = date.today()
+    r1 = await client.post("/api/v1/auth/register", json={
+        "email": "vetday_owner@example.com", "username": "vetday_owner", "password": "pass1234",
+    })
+    h1 = {"Authorization": f"Bearer {r1.json()['access_token']}"}
+
+    pet_res = await client.post("/api/v1/pets", headers=h1, json={"name": "ВетДеньПитомец", "species": "кот"})
+    pet_id = pet_res.json()["id"]
+    clinic_res = await client.post("/api/v1/clinics", headers=h1, json={
+        "name": "КлиникаДеньВизита", "address": "ул. Ленина, 1", "phone": "79991234567",
+    })
+    clinic_id = clinic_res.json()["id"]
+    appointment_at = f"{today.isoformat()}T10:00:00Z"
+
+    await client.post("/api/v1/vet-appointments", headers=h1, json={
+        "pet_id": pet_id, "clinic_id": clinic_id,
+        "appointment_at": appointment_at, "reminder_at": appointment_at,
+    })
+
+    res = await client.get(f"/api/v1/calendar/month/{today.year}/{today.month}", headers=h1)
+    assert res.status_code == 200
+    day_entry = next(d for d in res.json()["days"] if d["date"] == today.isoformat())
+    assert day_entry["has_vet_appointment"] is True
+
+
+@pytest.mark.asyncio
+async def test_month_summary_dose_day_without_vet_appointment_flag_false(client: AsyncClient) -> None:
+    today = date.today()
+    r1 = await client.post("/api/v1/auth/register", json={
+        "email": "novetday_owner@example.com", "username": "novetday_owner", "password": "pass1234",
+    })
+    h1 = {"Authorization": f"Bearer {r1.json()['access_token']}"}
+
+    pet_res = await client.post("/api/v1/pets", headers=h1, json={"name": "БезВетДняПитомец", "species": "кот"})
+    pet_id = pet_res.json()["id"]
+    drug_id = await _create_drug(client, h1)
+
+    await client.post("/api/v1/medications", headers=h1, json={
+        "pet_id": pet_id, "drug_id": drug_id, "dosage": "1мг",
+        "frequency_per_day": 1, "start_date": today.isoformat(), "end_date": today.isoformat(),
+    })
+
+    res = await client.get(f"/api/v1/calendar/month/{today.year}/{today.month}", headers=h1)
+    day_entry = next(d for d in res.json()["days"] if d["date"] == today.isoformat())
+    assert day_entry["has_vet_appointment"] is False
+
+
+@pytest.mark.asyncio
 async def test_month_summary_requires_auth(client: AsyncClient) -> None:
     res = await client.get("/api/v1/calendar/month/2026/7")
     assert res.status_code == 403
