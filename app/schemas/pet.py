@@ -2,6 +2,8 @@ from datetime import date
 
 from pydantic import BaseModel, field_validator
 
+from app.models.pet import PetSex, ReproductiveStatus
+
 
 class PetBase(BaseModel):
     name: str
@@ -10,6 +12,8 @@ class PetBase(BaseModel):
     birth_date: date | None = None
     weight_kg: float | None = None
     notes: str | None = None
+    sex: PetSex = PetSex.UNKNOWN
+    reproductive_status: ReproductiveStatus = ReproductiveStatus.UNKNOWN
 
     @field_validator("weight_kg")
     @classmethod
@@ -30,6 +34,8 @@ class PetUpdate(BaseModel):
     birth_date: date | None = None
     weight_kg: float | None = None
     notes: str | None = None
+    sex: PetSex | None = None
+    reproductive_status: ReproductiveStatus | None = None
 
 
 class PetResponse(PetBase):

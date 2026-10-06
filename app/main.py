@@ -14,6 +14,7 @@ from app.api.v1 import (
     calendar,
     clinics,
     diagnoses,
+    diary_entries,
     doses,
     drugs,
     medications,
@@ -88,6 +89,7 @@ app.include_router(bug_reports.router, prefix=API_PREFIX)
 app.include_router(clinics.router, prefix=API_PREFIX)
 app.include_router(vet_appointments.router, prefix=API_PREFIX)
 app.include_router(diagnoses.router, prefix=API_PREFIX)
+app.include_router(diary_entries.router, prefix=API_PREFIX)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
