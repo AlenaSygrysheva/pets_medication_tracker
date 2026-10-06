@@ -219,3 +219,137 @@ async def test_vet_appointments_are_scoped_per_owner(client: AsyncClient) -> Non
 async def test_vet_appointments_require_auth(client: AsyncClient) -> None:
     res = await client.get("/api/v1/vet-appointments")
     assert res.status_code == 403
+
+
+async def _create_appointment(
+    client: AsyncClient, headers: dict[str, str], pet_id: int, clinic_id: int, **extra: str
+) -> dict:
+    appointment_at = datetime(2026, 10, 7, 13, 0, tzinfo=UTC)
+    res = await client.post("/api/v1/vet-appointments", headers=headers, json={
+        "pet_id": pet_id, "clinic_id": clinic_id,
+        "appointment_at": appointment_at.isoformat(), "reminder_at": appointment_at.isoformat(),
+        **extra,
+    })
+    assert res.status_code == 201
+    data: dict = res.json()
+    return data
+
+
+@pytest.mark.asyncio
+async def test_list_survives_legacy_clinic_phone(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    """Regression: a clinic saved before the digits-only phone rule used to make
+    every response that embeds it fail with 500, so the pet's appointments list
+    looked empty in the UI."""
+    from sqlalchemy import update
+
+    from app.models.clinic import Clinic
+    from tests.conftest import TestSessionLocal
+
+    pet_id = await _create_pet(client, auth_headers, "СтарыйТелефон")
+    clinic_id = await _create_clinic(client, auth_headers, "КлиникаСтарыйТелефон")
+    await _create_appointment(client, auth_headers, pet_id, clinic_id)
+    async with TestSessionLocal() as session:
+        await session.execute(
+            update(Clinic).where(Clinic.id == clinic_id).values(phone="+7 (831) 234-36-03")
+        )
+        await session.commit()
+
+    res = await client.get(f"/api/v1/vet-appointments?pet_id={pet_id}", headers=auth_headers)
+    assert res.status_code == 200
+    assert len(res.json()) == 1
+    assert res.json()[0]["clinic"]["phone"] == "+7 (831) 234-36-03"
+
+
+@pytest.mark.asyncio
+async def test_complete_moves_appointment_to_history(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    pet_id = await _create_pet(client, auth_headers, "ПриёмСостоялся")
+    clinic_id = await _create_clinic(client, auth_headers, "КлиникаСостоялся")
+    appt = await _create_appointment(
+        client, auth_headers, pet_id, clinic_id, doctor_name="Петров", comments="Взять анализы"
+    )
+
+    res = await client.post(f"/api/v1/vet-appointments/{appt['id']}/complete", headers=auth_headers)
+    assert res.status_code == 200
+    visit = res.json()
+    assert visit["pet_id"] == pet_id
+    assert visit["clinic_name"] == "КлиникаСостоялся"
+    assert visit["clinic_address"] == "ул. Ленина, 1"
+    assert visit["clinic_phone"] == "79991234567"
+    assert visit["doctor_name"] == "Петров"
+    assert visit["comments"] == "Взять анализы"
+    assert visit["appointment_at"].startswith("2026-10-07T13:00")
+
+    # The appointment itself is gone: no longer listed and closed for editing.
+    assert (await client.get(f"/api/v1/vet-appointments/{appt['id']}", headers=auth_headers)).status_code == 404
+    listed = await client.get(f"/api/v1/vet-appointments?pet_id={pet_id}", headers=auth_headers)
+    assert listed.json() == []
+    patch_res = await client.patch(
+        f"/api/v1/vet-appointments/{appt['id']}", headers=auth_headers, json={"comments": "x"}
+    )
+    assert patch_res.status_code == 404
+    again = await client.post(f"/api/v1/vet-appointments/{appt['id']}/complete", headers=auth_headers)
+    assert again.status_code == 404
+
+    history = await client.get(f"/api/v1/vet-appointments/completed?pet_id={pet_id}", headers=auth_headers)
+    assert history.status_code == 200
+    assert [v["id"] for v in history.json()] == [visit["id"]]
+
+
+@pytest.mark.asyncio
+async def test_completed_visit_survives_clinic_deletion(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    pet_id = await _create_pet(client, auth_headers, "КлиникаУдаленаПосле")
+    clinic_id = await _create_clinic(client, auth_headers, "КлиникаВременная")
+    appt = await _create_appointment(client, auth_headers, pet_id, clinic_id)
+    await client.post(f"/api/v1/vet-appointments/{appt['id']}/complete", headers=auth_headers)
+
+    await client.delete(f"/api/v1/clinics/{clinic_id}", headers=auth_headers)
+
+    history = await client.get(f"/api/v1/vet-appointments/completed?pet_id={pet_id}", headers=auth_headers)
+    assert history.json()[0]["clinic_name"] == "КлиникаВременная"
+
+
+@pytest.mark.asyncio
+async def test_completed_visits_filter_by_pet(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    pet1 = await _create_pet(client, auth_headers, "ИсторияПитомец1")
+    pet2 = await _create_pet(client, auth_headers, "ИсторияПитомец2")
+    clinic_id = await _create_clinic(client, auth_headers, "КлиникаИстория")
+    a1 = await _create_appointment(client, auth_headers, pet1, clinic_id)
+    a2 = await _create_appointment(client, auth_headers, pet2, clinic_id)
+    await client.post(f"/api/v1/vet-appointments/{a1['id']}/complete", headers=auth_headers)
+    await client.post(f"/api/v1/vet-appointments/{a2['id']}/complete", headers=auth_headers)
+
+    res = await client.get(f"/api/v1/vet-appointments/completed?pet_id={pet1}", headers=auth_headers)
+    assert res.status_code == 200
+    assert len(res.json()) == 1
+    assert res.json()[0]["pet_id"] == pet1
+
+
+@pytest.mark.asyncio
+async def test_complete_is_scoped_per_owner(client: AsyncClient) -> None:
+    r1 = await client.post("/api/v1/auth/register", json={
+        "email": "complete_owner1@example.com", "username": "complete_owner1", "password": "pass1234",
+    })
+    h1 = {"Authorization": f"Bearer {r1.json()['access_token']}"}
+    pet_id = await _create_pet(client, h1, "ЧужойЗавершённый")
+    clinic_id = await _create_clinic(client, h1, "ЧужаяКлиникаЗавершённый")
+    appt = await _create_appointment(client, h1, pet_id, clinic_id)
+
+    r2 = await client.post("/api/v1/auth/register", json={
+        "email": "complete_owner2@example.com", "username": "complete_owner2", "password": "pass1234",
+    })
+    h2 = {"Authorization": f"Bearer {r2.json()['access_token']}"}
+
+    res = await client.post(f"/api/v1/vet-appointments/{appt['id']}/complete", headers=h2)
+    assert res.status_code == 404
+    history = await client.get(f"/api/v1/vet-appointments/completed?pet_id={pet_id}", headers=h2)
+    assert history.status_code == 404
+    # The owner's appointment is untouched.
+    assert (await client.get(f"/api/v1/vet-appointments/{appt['id']}", headers=h1)).status_code == 200

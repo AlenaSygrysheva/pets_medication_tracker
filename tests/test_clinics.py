@@ -196,3 +196,100 @@ async def test_clinics_are_scoped_per_owner(client: AsyncClient) -> None:
 async def test_clinics_require_auth(client: AsyncClient) -> None:
     res = await client.get("/api/v1/clinics")
     assert res.status_code == 403
+
+
+async def _create_full_clinic(client: AsyncClient, headers: dict[str, str], name: str) -> int:
+    res = await client.post("/api/v1/clinics", headers=headers, json={
+        **_clinic_payload(name), "website": "https://old.example.com",
+    })
+    assert res.status_code == 201
+    id_: int = res.json()["id"]
+    return id_
+
+
+@pytest.mark.asyncio
+async def test_update_all_clinic_fields(client: AsyncClient, auth_headers: dict[str, str]) -> None:
+    clinic_id = await _create_full_clinic(client, auth_headers, "КлиникаВсеПоля")
+
+    res = await client.patch(f"/api/v1/clinics/{clinic_id}", headers=auth_headers, json={
+        "name": "КлиникаВсеПоляНовая", "address": "пр. Мира, 5",
+        "phone": "78001234567", "website": "https://new.example.com",
+    })
+    assert res.status_code == 200
+    assert res.json() == {
+        "id": clinic_id, "name": "КлиникаВсеПоляНовая", "address": "пр. Мира, 5",
+        "phone": "78001234567", "website": "https://new.example.com",
+    }
+    # Persisted, not just echoed back.
+    listed = await client.get("/api/v1/clinics", headers=auth_headers)
+    assert next(c for c in listed.json() if c["id"] == clinic_id)["website"] == "https://new.example.com"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cleared", [None, "", "   "])
+async def test_update_clears_website(
+    client: AsyncClient, auth_headers: dict[str, str], cleared: str | None
+) -> None:
+    clinic_id = await _create_full_clinic(client, auth_headers, f"КлиникаОчистка{cleared!r}")
+
+    res = await client.patch(
+        f"/api/v1/clinics/{clinic_id}", headers=auth_headers, json={"website": cleared}
+    )
+    assert res.status_code == 200
+    assert res.json()["website"] is None
+    listed = await client.get("/api/v1/clinics", headers=auth_headers)
+    assert next(c for c in listed.json() if c["id"] == clinic_id)["website"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_without_website_keeps_it(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    clinic_id = await _create_full_clinic(client, auth_headers, "КлиникаСайтОстаётся")
+
+    res = await client.patch(
+        f"/api/v1/clinics/{clinic_id}", headers=auth_headers, json={"address": "ул. Новая, 2"}
+    )
+    assert res.status_code == 200
+    assert res.json()["website"] == "https://old.example.com"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ["name", "address", "phone"])
+@pytest.mark.parametrize("value", [None, "", "   "])
+async def test_update_cannot_clear_required_fields(
+    client: AsyncClient, auth_headers: dict[str, str], field: str, value: str | None
+) -> None:
+    name = f"КлиникаОбяз{field}{value!r}"
+    clinic_id = await _create_full_clinic(client, auth_headers, name)
+
+    res = await client.patch(f"/api/v1/clinics/{clinic_id}", headers=auth_headers, json={field: value})
+    assert res.status_code == 422
+    listed = await client.get("/api/v1/clinics", headers=auth_headers)
+    stored = next(c for c in listed.json() if c["id"] == clinic_id)
+    assert stored[field] == {**_clinic_payload(name)}[field]
+
+
+@pytest.mark.asyncio
+async def test_create_blank_name_or_address_rejected(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    res = await client.post("/api/v1/clinics", headers=auth_headers, json={
+        **_clinic_payload("x"), "name": "   ",
+    })
+    assert res.status_code == 422
+    res = await client.post("/api/v1/clinics", headers=auth_headers, json={
+        **_clinic_payload("КлиникаПустойАдрес"), "address": "  ",
+    })
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_blank_website_stored_as_none(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    res = await client.post("/api/v1/clinics", headers=auth_headers, json={
+        **_clinic_payload("КлиникаПустойСайт"), "website": "",
+    })
+    assert res.status_code == 201
+    assert res.json()["website"] is None

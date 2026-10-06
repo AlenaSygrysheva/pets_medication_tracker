@@ -153,15 +153,19 @@ class MedicationService:
                 return datetime.combine(after.date(), t, tzinfo=UTC)
         return datetime.combine(after.date() + timedelta(days=1), times[0], tzinfo=UTC)
 
+    @staticmethod
+    def course_status(med: Medication, pending: int) -> str:
+        """"active" | "completed" | "cancelled" — shared by the stats tab and the PDF card."""
+        if not med.is_active:
+            return "cancelled"
+        if pending > 0:
+            return "active"
+        return "completed"
+
     async def _build_stats(self, med: Medication) -> MedicationStatsResponse:
         counts = await self.dose_repo.get_status_counts(med.id)
         pending = counts.get(DoseStatus.PENDING.value, 0)
-        if not med.is_active:
-            status = "cancelled"
-        elif pending > 0:
-            status = "active"
-        else:
-            status = "completed"
+        status = self.course_status(med, pending)
         return MedicationStatsResponse(
             medication_id=med.id,
             medication_name=f"{med.drug.name} {med.drug.strength}",

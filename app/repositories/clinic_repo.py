@@ -43,7 +43,9 @@ class ClinicRepository:
         return clinic
 
     async def update(self, clinic: Clinic, data: ClinicUpdate) -> Clinic:
-        for field, value in data.model_dump(exclude_none=True).items():
+        # exclude_unset, not exclude_none: an explicit null must reach the DB to clear
+        # an optional field (ClinicUpdate rejects null for the required ones).
+        for field, value in data.model_dump(exclude_unset=True).items():
             setattr(clinic, field, value)
         await self.db.flush()
         await self.db.refresh(clinic)

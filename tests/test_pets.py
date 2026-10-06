@@ -60,3 +60,65 @@ async def test_get_other_user_pet_forbidden(client):
     h2 = {"Authorization": f"Bearer {r2.json()['access_token']}"}
     res = await client.get(f"/api/v1/pets/{pet_id}", headers=h2)
     assert res.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reproductive_status_defaults_to_unknown(client, auth_headers):
+    res = await client.post("/api/v1/pets", headers=auth_headers, json={
+        "name": "БезСтатуса", "species": "кошка",
+    })
+    assert res.status_code == 201
+    assert res.json()["reproductive_status"] == "unknown"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["intact", "sterilized", "unknown"])
+async def test_create_pet_with_reproductive_status(client, auth_headers, status):
+    res = await client.post("/api/v1/pets", headers=auth_headers, json={
+        "name": f"Статус-{status}", "species": "собака", "reproductive_status": status,
+    })
+    assert res.status_code == 201
+    assert res.json()["reproductive_status"] == status
+
+
+@pytest.mark.asyncio
+async def test_update_reproductive_status(client, auth_headers):
+    created = await client.post("/api/v1/pets", headers=auth_headers, json={
+        "name": "СменаСтатуса", "species": "кошка", "reproductive_status": "intact",
+    })
+    pet_id = created.json()["id"]
+
+    res = await client.patch(f"/api/v1/pets/{pet_id}", headers=auth_headers, json={
+        "reproductive_status": "sterilized",
+    })
+    assert res.status_code == 200
+    assert res.json()["reproductive_status"] == "sterilized"
+    # Other edits leave it alone.
+    res = await client.patch(f"/api/v1/pets/{pet_id}", headers=auth_headers, json={"notes": "x"})
+    assert res.json()["reproductive_status"] == "sterilized"
+    got = await client.get(f"/api/v1/pets/{pet_id}", headers=auth_headers)
+    assert got.json()["reproductive_status"] == "sterilized"
+
+
+@pytest.mark.asyncio
+async def test_invalid_reproductive_status_rejected(client, auth_headers):
+    res = await client.post("/api/v1/pets", headers=auth_headers, json={
+        "name": "ПлохойСтатус", "species": "кошка", "reproductive_status": "maybe",
+    })
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_sex_defaults_to_unknown_and_can_be_set(client, auth_headers):
+    created = await client.post("/api/v1/pets", headers=auth_headers, json={
+        "name": "ПолПитомца", "species": "кошка",
+    })
+    assert created.json()["sex"] == "unknown"
+    pet_id = created.json()["id"]
+
+    res = await client.patch(f"/api/v1/pets/{pet_id}", headers=auth_headers, json={"sex": "female"})
+    assert res.status_code == 200
+    assert res.json()["sex"] == "female"
+
+    bad = await client.patch(f"/api/v1/pets/{pet_id}", headers=auth_headers, json={"sex": "x"})
+    assert bad.status_code == 422

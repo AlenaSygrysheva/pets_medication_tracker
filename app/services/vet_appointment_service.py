@@ -3,8 +3,10 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.models.completed_vet_visit import CompletedVetVisit
 from app.models.vet_appointment import VetAppointment
 from app.repositories.clinic_repo import ClinicRepository
+from app.repositories.completed_vet_visit_repo import CompletedVetVisitRepository
 from app.repositories.pet_repo import PetRepository
 from app.repositories.vet_appointment_repo import VetAppointmentRepository
 from app.schemas.vet_appointment import VetAppointmentCreate, VetAppointmentUpdate
@@ -15,6 +17,7 @@ class VetAppointmentService:
         self.repo = VetAppointmentRepository(db)
         self.pet_repo = PetRepository(db)
         self.clinic_repo = ClinicRepository(db)
+        self.completed_repo = CompletedVetVisitRepository(db)
 
     async def _validate_pet(self, pet_id: int, owner_id: int) -> None:
         pet = await self.pet_repo.get_by_id(pet_id)
@@ -60,6 +63,22 @@ class VetAppointmentService:
     async def delete_appointment(self, appointment_id: int, owner_id: int) -> None:
         appointment = await self.get_appointment(appointment_id, owner_id)
         await self.repo.delete(appointment)
+
+    async def complete_appointment(self, appointment_id: int, owner_id: int) -> CompletedVetVisit:
+        """Mark as "приём состоялся": move the appointment into the pet's visit history.
+        The appointment itself is deleted, so it can no longer be edited and
+        drops out of the active list and the calendar."""
+        appointment = await self.get_appointment(appointment_id, owner_id)
+        visit = await self.completed_repo.create_from_appointment(appointment)
+        await self.repo.delete(appointment)
+        return visit
+
+    async def get_completed_visits(
+        self, owner_id: int, pet_id: int | None = None
+    ) -> list[CompletedVetVisit]:
+        if pet_id is not None:
+            await self._validate_pet(pet_id, owner_id)
+        return await self.completed_repo.get_all_by_owner(owner_id, pet_id)
 
     @staticmethod
     def _as_utc(value: datetime) -> datetime:

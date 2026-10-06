@@ -43,3 +43,17 @@ class VetAppointmentResponse(BaseModel):
     clinic: ClinicResponse
 
     model_config = {"from_attributes": True}
+
+
+class CompletedVetVisitResponse(BaseModel):
+    id: int
+    pet_id: int
+    clinic_name: str
+    clinic_address: str | None
+    clinic_phone: str | None
+    doctor_name: str | None
+    appointment_at: datetime
+    comments: str | None
+    completed_at: datetime
+
+    model_config = {"from_attributes": True}

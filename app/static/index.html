@@ -111,6 +111,44 @@
   </div>
 </div>
 
+<!-- Confirm Dialog: replaces native confirm(), whose look can't be styled -->
+<div id="confirmDialog" class="fixed inset-0 bg-black/50 z-[80] hidden flex items-center justify-center p-6"
+  onclick="if (event.target === this) resolveConfirmDialog(false)">
+  <div role="alertdialog" aria-modal="true" aria-labelledby="confirmDialogMessage"
+    class="bg-white w-full max-w-sm rounded-2xl border-2 border-blue-400 shadow-xl p-6 space-y-5">
+    <p id="confirmDialogMessage" class="text-sm text-gray-700 text-center leading-relaxed whitespace-pre-line"></p>
+    <div class="flex gap-3">
+      <button type="button" id="confirmDialogCancel" onclick="resolveConfirmDialog(false)"
+        class="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-300">Отмена</button>
+      <button type="button" id="confirmDialogOk" onclick="resolveConfirmDialog(true)"
+        class="flex-1 py-2.5 rounded-xl text-sm font-medium text-white"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Настройки</h3>
+      <button onclick="closeModal('settingsModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <div>
+      <div class="text-sm text-gray-700 mb-2">Формат времени</div>
+      <div class="flex bg-gray-100 rounded-xl p-1">
+        <button onclick="setTimeFormat('24')" id="timeFormat24"
+          class="flex-1 py-2 rounded-lg text-sm font-medium transition-all">
+          24 часа · 20:30
+        </button>
+        <button onclick="setTimeFormat('12')" id="timeFormat12"
+          class="flex-1 py-2 rounded-lg text-sm font-medium transition-all">
+          12 часов · 8:30 PM
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Bug Report Modal -->
 <div id="bugReportModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
   <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
@@ -142,6 +180,8 @@
     </div>
     <div class="flex items-center gap-3">
       <span id="headerUsername" class="text-sm text-gray-500"></span>
+      <button onclick="openSettingsModal()" title="Настройки"
+        class="text-gray-400 hover:text-blue-500 transition-colors">⚙️</button>
       <button onclick="openModal('bugReportModal')" title="Сообщить об ошибке"
         class="text-gray-400 hover:text-orange-500 transition-colors">🐞</button>
       <button onclick="doLogout()" class="text-xs text-gray-400 hover:text-red-500 transition-colors">Выйти</button>
@@ -240,7 +280,7 @@
     <div id="page-pets" class="page px-4 space-y-4 hidden">
       <div class="flex items-center justify-between py-2">
         <h2 class="font-semibold text-gray-800">Мои питомцы</h2>
-        <button onclick="openModal('petModal')"
+        <button onclick="openAddPetModal()"
           class="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium">+ Добавить</button>
       </div>
       <div id="petsList" class="space-y-3"></div>
@@ -313,6 +353,10 @@
           class="flex-1 py-2 rounded-lg text-sm font-medium transition-all">
           Завершённые
         </button>
+        <button onclick="selectStatsTab('vet')" id="statsTabVet"
+          class="flex-1 py-2 rounded-lg text-sm font-medium transition-all">
+          Приёмы врача
+        </button>
       </div>
 
       <div id="statsList" class="space-y-3"></div>
@@ -358,6 +402,26 @@
           class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
         <input type="number" id="petWeight" placeholder="Вес (кг)" step="0.01" min="0.01"
           class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="petSex" class="text-xs text-gray-500 mb-1 block">Пол</label>
+          <select id="petSex"
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="unknown">Неизвестно</option>
+            <option value="male">Самец</option>
+            <option value="female">Самка</option>
+          </select>
+        </div>
+        <div>
+          <label for="petReproductive" class="text-xs text-gray-500 mb-1 block">Репродуктивность</label>
+          <select id="petReproductive"
+            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="unknown">Неизвестно</option>
+            <option value="intact">Не стерилизовано</option>
+            <option value="sterilized">Стерилизовано</option>
+          </select>
+        </div>
       </div>
       <textarea id="petNotes" placeholder="Заметки" rows="2"
         class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
@@ -413,6 +477,112 @@
       <button type="button" id="diagnosisDeleteBtn" onclick="deleteDiagnosisFromModal()"
         class="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-sm font-medium hidden">
         Удалить диагноз
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- PDF Report Modal -->
+<div id="reportModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Карточка в PDF: <span id="reportPetName"></span></h3>
+      <button onclick="closeModal('reportModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <p class="text-xs text-gray-500">Общая информация о питомце попадёт в карточку автоматически.</p>
+
+    <div>
+      <div class="text-sm font-medium text-gray-700 mb-1">Лечение за период</div>
+      <div class="grid grid-cols-2 gap-2">
+        <input type="text" id="reportFrom" placeholder="с дд/мм/гггг" maxlength="10" oninput="autoDateSlash(this)"
+          class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <input type="text" id="reportTo" placeholder="по дд/мм/гггг" maxlength="10" oninput="autoDateSlash(this)"
+          class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      </div>
+      <div class="text-[10px] text-gray-400 mt-1">Курсы препаратов и приёмы врача, попадающие в этот период</div>
+    </div>
+
+    <div>
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-medium text-gray-700">Диагнозы</span>
+        <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+          <input type="checkbox" id="reportDiagnosesAll" onchange="toggleReportAll('diagnoses', this.checked)" class="w-4 h-4" />
+          Выбрать все
+        </label>
+      </div>
+      <div id="reportDiagnoses" class="space-y-1.5"></div>
+    </div>
+
+    <div>
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-medium text-gray-700">Дневник состояния <span class="text-gray-400 font-normal">(необязательно)</span></span>
+        <label class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+          <input type="checkbox" id="reportDiaryAll" onchange="toggleReportAll('diary', this.checked)" class="w-4 h-4" />
+          Выбрать все
+        </label>
+      </div>
+      <div id="reportDiary" class="space-y-1.5 max-h-60 overflow-y-auto"></div>
+    </div>
+
+    <div id="reportError" class="text-xs text-center text-red-500 hidden"></div>
+    <button id="reportDownloadBtn" onclick="downloadReport()"
+      class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm disabled:opacity-60">
+      📄 Скачать PDF
+    </button>
+  </div>
+</div>
+
+<!-- Diary List Modal -->
+<div id="diaryListModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]">
+    <div class="flex items-center justify-between">
+      <h3 class="font-semibold text-gray-800">Дневник состояния: <span id="diaryPetName"></span></h3>
+      <button onclick="closeModal('diaryListModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <button onclick="openAddDiaryEntryModal()"
+      class="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-medium">+ Добавить запись</button>
+    <div id="diaryToolbar" class="flex items-center justify-between gap-2 hidden">
+      <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+        <input type="checkbox" id="diarySelectAll" onchange="toggleAllDiaryEntries(this.checked)" class="w-4 h-4" />
+        Выбрать все
+      </label>
+      <button id="diaryBulkDeleteBtn" onclick="deleteSelectedDiaryEntries()" disabled
+        class="px-3 py-1.5 rounded-lg text-sm font-medium bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed">
+        Удалить выбранные
+      </button>
+    </div>
+    <div id="diaryList" class="space-y-3"></div>
+    <div id="noDiary" class="text-center py-10 text-gray-400 hidden">
+      <div class="text-4xl mb-2">📖</div>
+      <div class="text-sm">Записей пока нет</div>
+    </div>
+  </div>
+</div>
+
+<!-- Diary Entry Modal (create/edit) -->
+<div id="diaryEntryModal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-end justify-center">
+  <div class="bg-white w-full max-w-md rounded-t-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 id="diaryEntryModalTitle" class="font-semibold text-gray-800">Новая запись</h3>
+      <button onclick="closeModal('diaryEntryModal')" class="text-gray-400 text-xl">✕</button>
+    </div>
+    <form onsubmit="saveDiaryEntry(event)" class="space-y-3">
+      <input type="hidden" id="diaryEntryId" />
+      <div id="diaryEntryCreatedAt" class="text-xs text-gray-400 hidden"></div>
+      <div>
+        <textarea id="diaryEntryText" required maxlength="500" rows="6" placeholder="Как себя чувствует питомец? *"
+          oninput="updateDiaryCounter()"
+          class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"></textarea>
+        <div id="diaryEntryCounter" class="text-[10px] text-gray-400 text-right">0/500</div>
+      </div>
+      <div id="diaryEntryModalError" class="text-xs text-center text-red-500 hidden"></div>
+      <button type="submit"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium text-sm">
+        Сохранить
+      </button>
+      <button type="button" id="diaryEntryDeleteBtn" onclick="deleteDiaryEntryFromModal()"
+        class="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-sm font-medium hidden">
+        Удалить запись
       </button>
     </form>
   </div>
@@ -559,8 +729,9 @@
           <input type="text" id="vetAppointmentDate" required placeholder="дд/мм/гггг" maxlength="10"
             oninput="autoDateSlash(this)"
             class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-          <input type="time" id="vetAppointmentTime" required
-            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <div class="time-picker flex gap-1" data-allow-empty="1">
+            <input type="hidden" id="vetAppointmentTime" class="time-value" />
+          </div>
         </div>
       </div>
       <div>
@@ -569,8 +740,9 @@
           <input type="text" id="vetReminderDate" required placeholder="дд/мм/гггг" maxlength="10"
             oninput="autoDateSlash(this)"
             class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-          <input type="time" id="vetReminderTime" required
-            class="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <div class="time-picker flex gap-1" data-allow-empty="1">
+            <input type="hidden" id="vetReminderTime" class="time-value" />
+          </div>
         </div>
         <div class="text-[10px] text-gray-400 mt-1">Не позже даты и времени приёма</div>
       </div>
@@ -879,8 +1051,97 @@ async function initApp() {
   showPage('calendar');
 }
 
+// ===== SETTINGS =====
+// Per-device display preference, so it lives in localStorage rather than on the user.
+const TIME_FORMAT_KEY = 'time_format';
+let timeFormat = (() => {
+  try { return localStorage.getItem(TIME_FORMAT_KEY) === '12' ? '12' : '24'; } catch { return '24'; }
+})();
+
+function openSettingsModal() {
+  renderTimeFormatToggle();
+  openModal('settingsModal');
+}
+
+function renderTimeFormatToggle() {
+  ['24', '12'].forEach(f => {
+    document.getElementById('timeFormat' + f).className = 'flex-1 py-2 rounded-lg text-sm font-medium transition-all'
+      + (timeFormat === f ? ' bg-white shadow text-gray-800' : ' text-gray-500');
+  });
+}
+
+function setTimeFormat(format) {
+  timeFormat = format;
+  try { localStorage.setItem(TIME_FORMAT_KEY, format); } catch {}
+  renderTimeFormatToggle();
+  document.querySelectorAll('.time-picker').forEach(buildTimePicker);
+  if (currentPage === 'calendar') {
+    if (!document.getElementById('calendarDayView').classList.contains('hidden')) renderCalendarDayDetail();
+  } else {
+    showPage(currentPage);
+  }
+}
+
+// "HH:MM" (24h, as stored by the API) -> "20:30" or "8:30 PM" depending on the setting.
+function formatTime(hhmm) {
+  if (!hhmm) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  const mm = String(m).padStart(2, '0');
+  if (timeFormat === '24') return `${String(h).padStart(2, '0')}:${mm}`;
+  return `${h % 12 || 12}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+// A native <input type="time"> is drawn 12h or 24h by the browser's locale and can't
+// be switched from JS, so time fields are built from selects that follow the setting.
+// The value always lives in the hidden input.time-value inside the .time-picker as
+// 24h "HH:MM" (or '' when nothing is chosen) — that's what the rest of the code reads.
+function buildTimePicker(picker) {
+  const hidden = picker.querySelector('input.time-value');
+  const allowEmpty = picker.dataset.allowEmpty === '1';
+  picker.querySelectorAll('select').forEach(sel => sel.remove());
+
+  const pad = n => String(n).padStart(2, '0');
+  const range = n => Array.from({ length: n }, (_, i) => i);
+  const opt = (value, label, selected) => `<option value="${value}"${selected ? ' selected' : ''}>${label}</option>`;
+  const make = html => {
+    const sel = document.createElement('select');
+    sel.className = 'flex-1 min-w-0 px-1 py-3 rounded-xl border border-gray-200 text-sm bg-white text-center focus:outline-none focus:ring-2 focus:ring-blue-400';
+    sel.innerHTML = html;
+    return sel;
+  };
+
+  const [h24, min] = hidden.value ? hidden.value.split(':').map(Number) : [null, null];
+  const placeholder = label => allowEmpty ? opt('', label, h24 === null) : '';
+  let hourSel, ampmSel = null;
+  if (timeFormat === '24') {
+    hourSel = make(placeholder('чч') + range(24).map(h => opt(h, pad(h), h === h24)).join(''));
+  } else {
+    const h12 = h24 === null ? null : (h24 % 12 || 12);
+    hourSel = make(placeholder('чч') + [12, ...range(12).slice(1)].map(h => opt(h, h, h === h12)).join(''));
+    ampmSel = make(opt('AM', 'AM', h24 === null || h24 < 12) + opt('PM', 'PM', h24 !== null && h24 >= 12));
+  }
+  const minSel = make(placeholder('мм') + range(60).map(m => opt(m, pad(m), m === min)).join(''));
+
+  const sync = () => {
+    if (hourSel.value === '' || minSel.value === '') { hidden.value = ''; return; }
+    let h = Number(hourSel.value);
+    if (ampmSel) h = (h % 12) + (ampmSel.value === 'PM' ? 12 : 0);
+    hidden.value = `${pad(h)}:${pad(Number(minSel.value))}`;
+  };
+  [hourSel, minSel, ampmSel].filter(Boolean).forEach(sel => { sel.onchange = sync; picker.appendChild(sel); });
+}
+
+function setTimeValue(id, value) {
+  const hidden = document.getElementById(id);
+  hidden.value = value || '';
+  buildTimePicker(hidden.closest('.time-picker'));
+}
+
 // ===== NAVIGATION =====
+let currentPage = 'calendar';
+
 function showPage(name) {
+  currentPage = name;
   document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
   document.getElementById('page-' + name).classList.remove('hidden');
   document.querySelectorAll('nav button').forEach(b => {
@@ -897,6 +1158,10 @@ function showPage(name) {
 }
 
 // ===== PETS =====
+// "unknown" is deliberately absent: the card shows these only when they're known.
+const SEX_LABELS = { male: 'самец', female: 'самка' };
+const REPRODUCTIVE_LABELS = { intact: 'не стерилизовано', sterilized: 'стерилизовано' };
+
 async function loadPets() {
   const res = await apiFetch('/pets');
   if (res.ok) {
@@ -923,12 +1188,14 @@ function renderPets() {
             </div>
             <div class="min-w-0">
               <div class="font-semibold text-gray-800">${esc(pet.name)}</div>
-              <div class="text-xs text-gray-500 mt-0.5">${esc(pet.species)}${pet.breed ? ' · ' + esc(pet.breed) : ''}${pet.weight_kg ? ' · ' + pet.weight_kg + ' кг' : ''}</div>
+              <div class="text-xs text-gray-500 mt-0.5">${esc(pet.species)}${pet.breed ? ' · ' + esc(pet.breed) : ''}${pet.weight_kg ? ' · ' + pet.weight_kg + ' кг' : ''}${SEX_LABELS[pet.sex] ? ' · ' + SEX_LABELS[pet.sex] : ''}${REPRODUCTIVE_LABELS[pet.reproductive_status] ? ' · ' + REPRODUCTIVE_LABELS[pet.reproductive_status] : ''}</div>
               ${pet.notes ? `<div class="text-xs text-gray-400 mt-0.5 truncate">${esc(pet.notes)}</div>` : ''}
             </div>
           </div>
           <div class="flex gap-1 flex-shrink-0">
             <button onclick="openDiagnosesListModal(${pet.id}, '${esc(pet.name)}')" class="text-purple-400 hover:text-purple-600 text-sm px-2">🩻</button>
+            <button onclick="openDiaryModal(${pet.id}, '${esc(pet.name)}')" title="Дневник состояния" class="text-amber-500 hover:text-amber-600 text-sm px-2">📖</button>
+            <button onclick="openReportModal(${pet.id}, '${esc(pet.name)}')" title="Карточка в PDF" class="text-gray-500 hover:text-gray-700 text-sm px-2">📄</button>
             <button onclick="editPet(${pet.id})" class="text-blue-400 hover:text-blue-600 text-sm px-2">✏️</button>
             <button onclick="deletePet(${pet.id})" class="text-red-400 hover:text-red-600 text-sm px-2">🗑️</button>
           </div>
@@ -982,6 +1249,50 @@ function closeModal(id) {
   document.getElementById(id).classList.add('hidden');
 }
 
+// Promise-based replacement for window.confirm(): `if (!await confirmDialog('...')) return;`
+// danger: true paints the action button red (deletions); otherwise it's blue.
+let confirmDialogResolve = null;
+
+function confirmDialog(message, { confirmText = 'Да', cancelText = 'Отмена', danger = false } = {}) {
+  if (confirmDialogResolve) confirmDialogResolve(false); // a stale dialog counts as cancelled
+  document.getElementById('confirmDialogMessage').textContent = message;
+  document.getElementById('confirmDialogCancel').textContent = cancelText;
+  const ok = document.getElementById('confirmDialogOk');
+  ok.textContent = confirmText;
+  ok.className = 'flex-1 py-2.5 rounded-xl text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-300 '
+    + (danger ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600');
+  openModal('confirmDialog');
+  ok.focus();
+  return new Promise(resolve => { confirmDialogResolve = resolve; });
+}
+
+function resolveConfirmDialog(result) {
+  if (!confirmDialogResolve) return;
+  const resolve = confirmDialogResolve;
+  confirmDialogResolve = null;
+  closeModal('confirmDialog');
+  resolve(result);
+}
+
+document.addEventListener('keydown', e => {
+  if (!confirmDialogResolve) return;
+  if (e.key === 'Escape') { e.preventDefault(); resolveConfirmDialog(false); }
+});
+
+// Always start from a blank form: an edit closed with ✕ leaves its values (and petId,
+// which would turn "add" into an update of that pet) in the shared modal.
+function openAddPetModal() {
+  document.getElementById('petId').value = '';
+  ['petName', 'petSpecies', 'petBreed', 'petBirth', 'petWeight', 'petNotes', 'petAvatarInput']
+    .forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('petSex').value = 'unknown';
+  document.getElementById('petReproductive').value = 'unknown';
+  document.getElementById('petModalTitle').textContent = 'Добавить питомца';
+  document.getElementById('petAvatarImg').classList.add('hidden');
+  document.getElementById('petAvatarPlaceholder').classList.remove('hidden');
+  openModal('petModal');
+}
+
 function editPet(id) {
   const pet = pets.find(p => p.id === id);
   if (!pet) return;
@@ -992,6 +1303,8 @@ function editPet(id) {
   document.getElementById('petBirth').value = pet.birth_date ? fromApiDate(pet.birth_date) : '';
   document.getElementById('petWeight').value = pet.weight_kg || '';
   document.getElementById('petNotes').value = pet.notes || '';
+  document.getElementById('petSex').value = pet.sex || 'unknown';
+  document.getElementById('petReproductive').value = pet.reproductive_status || 'unknown';
   document.getElementById('petModalTitle').textContent = 'Редактировать питомца';
   document.getElementById('petAvatarInput').value = '';
   if (pet.avatar_path) {
@@ -1015,6 +1328,8 @@ async function savePet(e) {
     birth_date: toApiDate(document.getElementById('petBirth').value),
     weight_kg: parseFloat(document.getElementById('petWeight').value) || null,
     notes: document.getElementById('petNotes').value || null,
+    sex: document.getElementById('petSex').value,
+    reproductive_status: document.getElementById('petReproductive').value,
   };
   const res = await apiFetch(id ? `/pets/${id}` : '/pets', id ? 'PATCH' : 'POST', body);
   if (!res.ok) { showToast('Ошибка сохранения', true); return; }
@@ -1031,6 +1346,8 @@ async function savePet(e) {
   closeModal('petModal');
   document.getElementById('petId').value = '';
   document.getElementById('petModalTitle').textContent = 'Добавить питомца';
+  document.getElementById('petSex').value = 'unknown';
+  document.getElementById('petReproductive').value = 'unknown';
   document.getElementById('petAvatarInput').value = '';
   document.getElementById('petAvatarImg').classList.add('hidden');
   document.getElementById('petAvatarPlaceholder').classList.remove('hidden');
@@ -1041,7 +1358,7 @@ async function savePet(e) {
 }
 
 async function deletePet(id) {
-  if (!confirm('Удалить питомца? Все его препараты и дозы тоже будут удалены.')) return;
+  if (!await confirmDialog('Удалить питомца? Все его препараты и дозы тоже будут удалены.', { confirmText: 'Удалить', danger: true })) return;
   const res = await apiFetch(`/pets/${id}`, 'DELETE');
   if (res.ok) {
     await loadPets();
@@ -1050,6 +1367,264 @@ async function deletePet(id) {
     renderPetSelectors();
     showToast('Питомец удалён');
   }
+}
+
+// ===== PDF CARD =====
+let reportPetId = null;
+let reportPetName = '';
+// Selectable sections of the card: diagnoses and (optional) diary entries.
+const reportLists = {
+  diagnoses: { items: [], selected: new Set(), listId: 'reportDiagnoses', allId: 'reportDiagnosesAll',
+    empty: 'Диагнозов нет', label: d => esc(d.name) },
+  diary: { items: [], selected: new Set(), listId: 'reportDiary', allId: 'reportDiaryAll',
+    empty: 'Записей нет', label: e => `<span class="text-gray-400">${formatTimestamp(e.created_at)}</span> ${esc(e.text)}` },
+};
+
+async function openReportModal(petId, petName) {
+  reportPetId = petId;
+  reportPetName = petName;
+  document.getElementById('reportPetName').textContent = petName;
+  document.getElementById('reportError').classList.add('hidden');
+  const today = new Date();
+  document.getElementById('reportFrom').value = fromApiDate(`${today.getFullYear()}-01-01`);
+  document.getElementById('reportTo').value = fromApiDate(toLocalIsoDate(today));
+
+  const [diagRes, diaryRes] = await Promise.all([
+    apiFetch(`/diagnoses?pet_id=${petId}`), apiFetch(`/diary-entries?pet_id=${petId}`),
+  ]);
+  reportLists.diagnoses.items = diagRes.ok ? await diagRes.json() : [];
+  reportLists.diary.items = diaryRes.ok ? await diaryRes.json() : [];
+  Object.values(reportLists).forEach(l => { l.selected = new Set(); });
+  renderReportList('diagnoses');
+  renderReportList('diary');
+  openModal('reportModal');
+}
+
+function syncReportSelectAll(kind) {
+  const l = reportLists[kind];
+  const all = document.getElementById(l.allId);
+  all.checked = l.items.length > 0 && l.selected.size === l.items.length;
+  all.indeterminate = l.selected.size > 0 && l.selected.size < l.items.length;
+}
+
+function renderReportList(kind) {
+  const l = reportLists[kind];
+  const container = document.getElementById(l.listId);
+  document.getElementById(l.allId).closest('label').classList.toggle('hidden', !l.items.length);
+  container.innerHTML = l.items.length
+    ? l.items.map(item => `
+      <label class="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+        <input type="checkbox" class="mt-0.5 w-4 h-4 flex-shrink-0" ${l.selected.has(item.id) ? 'checked' : ''}
+          onchange="toggleReportItem('${kind}', ${item.id}, this.checked)" />
+        <span class="min-w-0 break-words">${l.label(item)}</span>
+      </label>`).join('')
+    : `<div class="text-xs text-gray-400">${l.empty}</div>`;
+  syncReportSelectAll(kind);
+}
+
+function toggleReportItem(kind, id, checked) {
+  const l = reportLists[kind];
+  if (checked) l.selected.add(id); else l.selected.delete(id);
+  syncReportSelectAll(kind);
+}
+
+function toggleReportAll(kind, checked) {
+  const l = reportLists[kind];
+  l.selected = checked ? new Set(l.items.map(i => i.id)) : new Set();
+  renderReportList(kind);
+}
+
+async function downloadReport() {
+  const errEl = document.getElementById('reportError');
+  errEl.classList.add('hidden');
+  const fail = msg => { errEl.textContent = msg; errEl.classList.remove('hidden'); };
+  const dateFrom = toApiDate(document.getElementById('reportFrom').value);
+  const dateTo = toApiDate(document.getElementById('reportTo').value);
+  if (!dateFrom || !dateTo) return fail('Укажите период в формате дд/мм/гггг');
+  if (dateFrom > dateTo) return fail('Дата начала периода позже даты окончания');
+
+  const btn = document.getElementById('reportDownloadBtn');
+  btn.disabled = true;
+  btn.textContent = 'Формируем PDF…';
+  try {
+    const res = await apiFetch(`/pets/${reportPetId}/report`, 'POST', {
+      date_from: dateFrom,
+      date_to: dateTo,
+      diagnosis_ids: [...reportLists.diagnoses.selected],
+      diary_entry_ids: [...reportLists.diary.selected],
+      tz_offset_minutes: new Date().getTimezoneOffset(),
+      time_format: timeFormat,
+    });
+    if (!res.ok) return fail(await extractErrorMessage(res) || 'Не удалось сформировать PDF');
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Карточка_${reportPetName}_${todayIsoDate()}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    closeModal('reportModal');
+    showToast('PDF-карточка сохранена');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📄 Скачать PDF';
+  }
+}
+
+// ===== CONDITION DIARY =====
+const DIARY_MAX_LENGTH = 500;
+let currentDiaryPetId = null;
+let currentDiaryEntries = [];
+let selectedDiaryIds = new Set();
+
+// created_at is a real server timestamp (unlike dose/appointment times, which are
+// literal user times), so it's shown in the browser's local time zone.
+function formatTimestamp(iso) {
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${formatTime(`${d.getHours()}:${d.getMinutes()}`)}`;
+}
+
+async function openDiaryModal(petId, petName) {
+  currentDiaryPetId = petId;
+  selectedDiaryIds = new Set();
+  document.getElementById('diaryPetName').textContent = petName;
+  await loadDiaryEntries();
+  openModal('diaryListModal');
+}
+
+async function loadDiaryEntries() {
+  const res = await apiFetch(`/diary-entries?pet_id=${currentDiaryPetId}`);
+  if (!res.ok) {
+    showToast(await extractErrorMessage(res) || 'Не удалось загрузить дневник', true);
+    currentDiaryEntries = [];
+  } else {
+    currentDiaryEntries = await res.json();
+  }
+  // Drop selections for entries that no longer exist.
+  const ids = new Set(currentDiaryEntries.map(e => e.id));
+  selectedDiaryIds = new Set([...selectedDiaryIds].filter(id => ids.has(id)));
+  renderDiaryList();
+}
+
+function renderDiaryList() {
+  const list = document.getElementById('diaryList');
+  const empty = document.getElementById('noDiary');
+  const toolbar = document.getElementById('diaryToolbar');
+  list.innerHTML = '';
+  const hasEntries = currentDiaryEntries.length > 0;
+  empty.classList.toggle('hidden', hasEntries);
+  toolbar.classList.toggle('hidden', !hasEntries);
+  currentDiaryEntries.forEach(e => {
+    const edited = e.updated_at !== e.created_at;
+    list.insertAdjacentHTML('beforeend', `
+      <div class="bg-gray-50 rounded-2xl p-3 border border-gray-100 flex items-start gap-3">
+        <input type="checkbox" class="mt-1 w-4 h-4 flex-shrink-0" ${selectedDiaryIds.has(e.id) ? 'checked' : ''}
+          onchange="toggleDiaryEntry(${e.id}, this.checked)" />
+        <div onclick="openEditDiaryEntryModal(${e.id})" class="flex-1 min-w-0 cursor-pointer">
+          <div class="text-xs text-gray-400">${formatTimestamp(e.created_at)}${edited ? ' · изменено' : ''}</div>
+          <div class="text-sm text-gray-800 mt-0.5 whitespace-pre-wrap break-words">${esc(e.text)}</div>
+        </div>
+      </div>
+    `);
+  });
+  updateDiarySelectionUi();
+}
+
+function toggleDiaryEntry(id, checked) {
+  if (checked) selectedDiaryIds.add(id); else selectedDiaryIds.delete(id);
+  updateDiarySelectionUi();
+}
+
+function toggleAllDiaryEntries(checked) {
+  selectedDiaryIds = checked ? new Set(currentDiaryEntries.map(e => e.id)) : new Set();
+  renderDiaryList();
+}
+
+function updateDiarySelectionUi() {
+  const count = selectedDiaryIds.size;
+  const btn = document.getElementById('diaryBulkDeleteBtn');
+  btn.disabled = count === 0;
+  btn.textContent = count ? `Удалить выбранные (${count})` : 'Удалить выбранные';
+  const all = document.getElementById('diarySelectAll');
+  all.checked = count > 0 && count === currentDiaryEntries.length;
+  all.indeterminate = count > 0 && count < currentDiaryEntries.length;
+}
+
+async function deleteSelectedDiaryEntries() {
+  const count = selectedDiaryIds.size;
+  if (!count || !await confirmDialog(`Удалить выбранные записи (${count})?`, { confirmText: 'Удалить', danger: true })) return;
+  const res = await apiFetch('/diary-entries/bulk-delete', 'POST', { ids: [...selectedDiaryIds] });
+  if (!res.ok) { showToast(await extractErrorMessage(res) || 'Не удалось удалить записи', true); return; }
+  selectedDiaryIds = new Set();
+  await loadDiaryEntries();
+  showToast(count === 1 ? 'Запись удалена' : `Удалено записей: ${count}`);
+}
+
+function updateDiaryCounter() {
+  const len = document.getElementById('diaryEntryText').value.length;
+  document.getElementById('diaryEntryCounter').textContent = `${len}/${DIARY_MAX_LENGTH}`;
+}
+
+function openAddDiaryEntryModal() {
+  document.getElementById('diaryEntryId').value = '';
+  document.getElementById('diaryEntryModalTitle').textContent = 'Новая запись';
+  document.getElementById('diaryEntryCreatedAt').classList.add('hidden');
+  document.getElementById('diaryEntryText').value = '';
+  document.getElementById('diaryEntryModalError').classList.add('hidden');
+  document.getElementById('diaryEntryDeleteBtn').classList.add('hidden');
+  updateDiaryCounter();
+  openModal('diaryEntryModal');
+}
+
+function openEditDiaryEntryModal(id) {
+  const e = currentDiaryEntries.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('diaryEntryId').value = e.id;
+  document.getElementById('diaryEntryModalTitle').textContent = 'Редактировать запись';
+  const createdEl = document.getElementById('diaryEntryCreatedAt');
+  createdEl.textContent = `Создано: ${formatTimestamp(e.created_at)}`;
+  createdEl.classList.remove('hidden');
+  document.getElementById('diaryEntryText').value = e.text;
+  document.getElementById('diaryEntryModalError').classList.add('hidden');
+  document.getElementById('diaryEntryDeleteBtn').classList.remove('hidden');
+  updateDiaryCounter();
+  openModal('diaryEntryModal');
+}
+
+async function saveDiaryEntry(ev) {
+  ev.preventDefault();
+  const errEl = document.getElementById('diaryEntryModalError');
+  errEl.classList.add('hidden');
+  const entryId = document.getElementById('diaryEntryId').value;
+  const text = document.getElementById('diaryEntryText').value.trim();
+  if (!text) {
+    errEl.textContent = 'Запись не может быть пустой';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const res = entryId
+    ? await apiFetch(`/diary-entries/${entryId}`, 'PATCH', { text })
+    : await apiFetch('/diary-entries', 'POST', { pet_id: currentDiaryPetId, text });
+  if (!res.ok) {
+    errEl.textContent = await extractErrorMessage(res) || 'Ошибка сохранения';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  closeModal('diaryEntryModal');
+  await loadDiaryEntries();
+  showToast(entryId ? 'Запись обновлена' : 'Запись добавлена');
+}
+
+async function deleteDiaryEntryFromModal() {
+  const entryId = document.getElementById('diaryEntryId').value;
+  if (!entryId || !await confirmDialog('Удалить запись?', { confirmText: 'Удалить', danger: true })) return;
+  const res = await apiFetch(`/diary-entries/${entryId}`, 'DELETE');
+  if (!res.ok) { showToast(await extractErrorMessage(res) || 'Не удалось удалить запись', true); return; }
+  closeModal('diaryEntryModal');
+  await loadDiaryEntries();
+  showToast('Запись удалена');
 }
 
 // ===== DIAGNOSES =====
@@ -1167,7 +1742,7 @@ async function saveDiagnosis(e) {
 
 async function deleteDiagnosisFromModal() {
   const diagnosisId = document.getElementById('diagnosisId').value;
-  if (!diagnosisId || !confirm('Удалить диагноз?')) return;
+  if (!diagnosisId || !await confirmDialog('Удалить диагноз?', { confirmText: 'Удалить', danger: true })) return;
   const res = await apiFetch(`/diagnoses/${diagnosisId}`, 'DELETE');
   if (res.ok) {
     closeModal('diagnosisModal');
@@ -1191,22 +1766,25 @@ function defaultReminderTimes(frequency) {
 function renderReminderTimeInputs(times) {
   const frequency = parseInt(document.getElementById('medFrequency').value);
   const container = document.getElementById('medReminderTimes');
-  const existing = Array.from(container.querySelectorAll('input[type="time"]')).map(i => i.value);
+  const existing = Array.from(container.querySelectorAll('input.time-value')).map(i => i.value);
   const values = times || existing;
   const defaults = defaultReminderTimes(frequency);
   container.innerHTML = '';
   for (let i = 0; i < frequency; i++) {
+    const picker = document.createElement('div');
+    picker.className = 'time-picker flex gap-1';
     const input = document.createElement('input');
-    input.type = 'time';
-    input.required = true;
-    input.value = values[i] || defaults[i];
-    input.className = 'w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400';
-    container.appendChild(input);
+    input.type = 'hidden';
+    input.className = 'time-value';
+    input.value = (values[i] || defaults[i]).slice(0, 5);
+    picker.appendChild(input);
+    container.appendChild(picker);
+    buildTimePicker(picker);
   }
 }
 
 function getReminderTimes() {
-  return Array.from(document.querySelectorAll('#medReminderTimes input[type="time"]')).map(i => i.value);
+  return Array.from(document.querySelectorAll('#medReminderTimes input.time-value')).map(i => i.value);
 }
 
 // ===== DOSAGE CALCULATOR =====
@@ -1379,7 +1957,7 @@ async function renderMedications() {
               <span class="font-semibold text-gray-800">${esc(med.drug.name)} ${esc(med.drug.strength)}</span>
               <span class="text-xs px-2 py-0.5 rounded-full ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${active ? 'Активен' : 'Завершён'}</span>
             </div>
-            <div class="text-sm text-gray-600 mt-1">${esc(med.dosage)} · ${med.frequency_per_day}x/день · ${(med.reminder_times || []).join(', ')}</div>
+            <div class="text-sm text-gray-600 mt-1">${esc(med.dosage)} · ${med.frequency_per_day}x/день · ${(med.reminder_times || []).map(formatTime).join(', ')}</div>
             <div class="text-xs text-gray-400 mt-1">${fromApiDate(med.start_date)}${med.end_date ? ' → ' + fromApiDate(med.end_date) : ' → ∞'}</div>
             ${med.instructions ? `<div class="text-xs text-blue-600 mt-1">ℹ️ ${esc(med.instructions)}</div>` : ''}
           </div>
@@ -1394,7 +1972,7 @@ async function renderMedications() {
 }
 
 async function deleteMedication(id) {
-  if (!confirm('Удалить курс? Он исчезнет из списка, но уже отмеченные приёмы останутся в календаре.')) return;
+  if (!await confirmDialog('Удалить курс? Он исчезнет из списка, но уже отмеченные приёмы останутся в календаре.', { confirmText: 'Удалить', danger: true })) return;
   const res = await apiFetch(`/medications/${id}`, 'DELETE');
   if (res.ok) { await renderMedications(); showToast('Курс удалён'); }
 }
@@ -1507,7 +2085,7 @@ async function saveDrug(e) {
 }
 
 async function deleteDrug(id) {
-  if (!confirm('Удалить препарат из каталога?')) return;
+  if (!await confirmDialog('Удалить препарат из каталога?', { confirmText: 'Удалить', danger: true })) return;
   const res = await apiFetch(`/drugs/${id}`, 'DELETE');
   if (res.ok) {
     await loadDrugs();
@@ -1527,7 +2105,11 @@ async function renderVetAppointments() {
   const list = document.getElementById('vetList');
   const empty = document.getElementById('noVet');
   list.innerHTML = '';
-  if (!res.ok) return;
+  empty.classList.add('hidden');
+  if (!res.ok) {
+    showToast(await extractErrorMessage(res) || 'Не удалось загрузить приёмы врача', true);
+    return;
+  }
   currentVetAppointments = await res.json();
   if (!currentVetAppointments.length) { empty.classList.remove('hidden'); return; }
   empty.classList.add('hidden');
@@ -1547,13 +2129,25 @@ async function renderVetAppointments() {
             <button onclick="deleteVetAppointment(${v.id})" class="text-red-400 hover:text-red-600 text-sm px-2">🗑️</button>
           </div>
         </div>
+        <button onclick="completeVetAppointment(${v.id})"
+          class="w-full mt-3 py-2 rounded-xl bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100">
+          ✅ Приём состоялся
+        </button>
       </div>
     `);
   });
 }
 
+async function completeVetAppointment(id) {
+  if (!await confirmDialog('Вы уверены? После нажатия приём будет отмечен как состоявшийся и закрыт для редактирования', { confirmText: 'Приём состоялся' })) return;
+  const res = await apiFetch(`/vet-appointments/${id}/complete`, 'POST');
+  if (!res.ok) { showToast(await extractErrorMessage(res) || 'Ошибка', true); return; }
+  await renderVetAppointments();
+  showToast('Приём перенесён в статистику');
+}
+
 async function deleteVetAppointment(id) {
-  if (!confirm('Удалить приём врача?')) return;
+  if (!await confirmDialog('Удалить приём врача?', { confirmText: 'Удалить', danger: true })) return;
   const res = await apiFetch(`/vet-appointments/${id}`, 'DELETE');
   if (res.ok) { await renderVetAppointments(); showToast('Приём удалён'); }
 }
@@ -1575,9 +2169,9 @@ async function openAddVetModal() {
   document.getElementById('vetDoctorName').value = '';
   document.getElementById('vetComments').value = '';
   document.getElementById('vetAppointmentDate').value = '';
-  document.getElementById('vetAppointmentTime').value = '';
+  setTimeValue('vetAppointmentTime', '');
   document.getElementById('vetReminderDate').value = '';
-  document.getElementById('vetReminderTime').value = '';
+  setTimeValue('vetReminderTime', '');
   document.getElementById('vetModalError').classList.add('hidden');
   openModal('vetModal');
 }
@@ -1600,10 +2194,10 @@ async function editVetAppointment(id) {
   document.getElementById('vetComments').value = v.comments || '';
   const appt = fromApiDateTime(v.appointment_at);
   document.getElementById('vetAppointmentDate').value = appt.date;
-  document.getElementById('vetAppointmentTime').value = appt.time;
+  setTimeValue('vetAppointmentTime', appt.time);
   const rem = fromApiDateTime(v.reminder_at);
   document.getElementById('vetReminderDate').value = rem.date;
-  document.getElementById('vetReminderTime').value = rem.time;
+  setTimeValue('vetReminderTime', rem.time);
   document.getElementById('vetModalError').classList.add('hidden');
   openModal('vetModal');
 }
@@ -1756,25 +2350,34 @@ async function saveClinic(e) {
     errEl.classList.remove('hidden');
     return;
   }
+  const name = document.getElementById('clinicName').value.trim();
+  const address = document.getElementById('clinicAddress').value.trim();
+  if (!name || !address) {
+    errEl.textContent = 'Название и адрес обязательны';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  // An empty website is sent as null, which clears it on edit.
   const body = {
-    name: document.getElementById('clinicName').value,
-    address: document.getElementById('clinicAddress').value,
-    phone: phone,
-    website: document.getElementById('clinicWebsite').value || null,
+    name,
+    address,
+    phone,
+    website: document.getElementById('clinicWebsite').value.trim() || null,
   };
   const res = clinicId
     ? await apiFetch(`/clinics/${clinicId}`, 'PATCH', body)
     : await apiFetch('/clinics', 'POST', body);
 
   if (!res.ok) {
-    const err = await res.json();
-    errEl.textContent = err.detail || 'Ошибка сохранения';
+    errEl.textContent = await extractErrorMessage(res) || 'Ошибка сохранения';
     errEl.classList.remove('hidden');
     return;
   }
 
   const saved = await res.json();
   await loadClinics();
+  // Appointment cards show the clinic's name, refresh them after an edit.
+  if (clinicId && currentPage === 'vet') renderVetAppointments();
   closeModal('clinicModal');
 
   if (fromVetModal) {
@@ -1786,7 +2389,7 @@ async function saveClinic(e) {
 }
 
 async function deleteClinic(id) {
-  if (!confirm('Удалить клинику из каталога?')) return;
+  if (!await confirmDialog('Удалить клинику из каталога?', { confirmText: 'Удалить', danger: true })) return;
   const res = await apiFetch(`/clinics/${id}`, 'DELETE');
   if (res.ok) {
     await loadClinics();
@@ -1806,6 +2409,32 @@ function selectStatsTab(tab) {
   renderStats();
 }
 
+async function renderCompletedVetVisits(list, empty) {
+  const res = await apiFetch(`/vet-appointments/completed?pet_id=${selectedPetId}`);
+  if (!res.ok) { showToast(await extractErrorMessage(res) || 'Ошибка', true); return; }
+  const visits = await res.json();
+  if (!visits.length) {
+    document.getElementById('noStatsText').textContent = 'Состоявшихся приёмов врача пока нет';
+    empty.classList.remove('hidden');
+    return;
+  }
+  visits.forEach(v => {
+    list.insertAdjacentHTML('beforeend', `
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between gap-2">
+          <span class="font-semibold text-gray-800">${esc(v.clinic_name)}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 flex-shrink-0">✅ Состоялся</span>
+        </div>
+        ${v.doctor_name ? `<div class="text-sm text-gray-600 mt-0.5">Врач: ${esc(v.doctor_name)}</div>` : ''}
+        <div class="text-xs text-gray-400 mt-1">Приём: ${formatApiDateTime(v.appointment_at)}</div>
+        ${v.clinic_address ? `<div class="text-xs text-gray-400">📍 ${esc(v.clinic_address)}</div>` : ''}
+        ${v.clinic_phone ? `<div class="text-xs text-gray-400">📞 ${esc(v.clinic_phone)}</div>` : ''}
+        ${v.comments ? `<div class="text-xs text-blue-600 mt-1">ℹ️ ${esc(v.comments)}</div>` : ''}
+      </div>
+    `);
+  });
+}
+
 async function renderStats() {
   if (!selectedPetId) return;
   renderPetSelectors();
@@ -1814,10 +2443,15 @@ async function renderStats() {
     + (statsTab === 'active' ? ' bg-white shadow text-gray-800' : ' text-gray-500');
   document.getElementById('statsTabEnded').className = 'flex-1 py-2 rounded-lg text-sm font-medium transition-all'
     + (statsTab === 'ended' ? ' bg-white shadow text-gray-800' : ' text-gray-500');
+  document.getElementById('statsTabVet').className = 'flex-1 py-2 rounded-lg text-sm font-medium transition-all'
+    + (statsTab === 'vet' ? ' bg-white shadow text-gray-800' : ' text-gray-500');
 
   const list = document.getElementById('statsList');
   const empty = document.getElementById('noStats');
   list.innerHTML = '';
+  empty.classList.add('hidden');
+
+  if (statsTab === 'vet') { await renderCompletedVetVisits(list, empty); return; }
 
   const path = statsTab === 'active' ? '/stats/active' : '/stats';
   const res = await apiFetch(`/medications/pet/${selectedPetId}${path}`);
@@ -1972,7 +2606,7 @@ async function renderCalendarDayDetail() {
   empty.classList.add('hidden');
 
   data.doses.forEach(dose => {
-    const time = new Date(dose.scheduled_at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+    const time = formatTime(fromApiDateTime(dose.scheduled_at).time);
     const statusLabels = { taken: '✅ Принято', pending: '⏳ Ожидает', missed: '❌ Пропущено', skipped: '⏭ Пропущено', cancelled: '🛑 Курс отменён' };
     const statusClasses = { taken: 'bg-green-50 border-green-200', pending: 'bg-yellow-50 border-yellow-200', missed: 'bg-red-50 border-red-200', skipped: 'bg-gray-50 border-gray-200', cancelled: 'bg-gray-50 border-gray-200' };
     list.insertAdjacentHTML('beforeend', `
@@ -2020,7 +2654,7 @@ async function recordDose(status) {
 
 async function cancelCourse() {
   if (!activeDoseMedId) return;
-  if (!confirm('Отменить курс? Все приёмы после этого дня будут удалены из календаря.')) return;
+  if (!await confirmDialog('Отменить курс? Все приёмы после этого дня будут удалены из календаря.', { confirmText: 'Отменить курс', cancelText: 'Назад', danger: true })) return;
   const asOfDate = toLocalIsoDate(calendarDate);
   const res = await apiFetch(`/medications/${activeDoseMedId}/cancel?as_of_date=${asOfDate}`, 'POST');
   if (res.ok) {
@@ -2086,7 +2720,7 @@ function fromApiDateTime(iso) {
 
 function formatApiDateTime(iso) {
   const { date, time } = fromApiDateTime(iso);
-  return `${date} ${time}`;
+  return `${date} ${formatTime(time)}`;
 }
 
 // Автоматически вставляет "/" после дня и месяца при вводе
